@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LogIn, Eye, EyeOff, AlertCircle, Mail, Lock } from "lucide-react";
+import { createClient } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -10,15 +12,21 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const router = useRouter();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    // TODO: connect Supabase auth
-    await new Promise((r) => setTimeout(r, 800));
-    setError("後端尚未連接，敬請期待 (Supabase coming soon)");
-    setLoading(false);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) {
+      setError(err.message.includes("Invalid login") ? "電子郵件或密碼錯誤" : err.message);
+      setLoading(false);
+    } else {
+      router.push("/dashboard");
+      router.refresh();
+    }
   };
 
   return (

@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { UserPlus, Eye, EyeOff, AlertCircle, Mail, Lock, User, AlertTriangle } from "lucide-react";
+import { createClient } from "@/lib/supabase";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
@@ -10,6 +12,8 @@ export default function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const router = useRouter();
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -20,11 +24,39 @@ export default function RegisterPage() {
     if (!agreed) { setError("請閱讀並同意免責聲明"); return; }
     setLoading(true);
     setError("");
-    // TODO: connect Supabase auth
-    await new Promise((r) => setTimeout(r, 800));
-    setError("後端尚未連接，敬請期待 (Supabase coming soon)");
-    setLoading(false);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: { data: { name: form.name } },
+    });
+    if (err) {
+      setError(err.message.includes("already registered") ? "此電子郵件已被註冊" : err.message);
+      setLoading(false);
+    } else {
+      // update profile name
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await supabase.from("profiles").update({ name: form.name }).eq("id", user.id);
+      setSuccess(true);
+      setLoading(false);
+    }
   };
+
+  if (success) return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="card p-8 text-center max-w-sm w-full">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+          style={{ background: "rgba(0,212,170,0.1)" }}>
+          <Mail size={28} style={{ color: "var(--accent)" }} />
+        </div>
+        <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>確認您的電子郵件</h2>
+        <p className="text-sm leading-relaxed mb-6" style={{ color: "var(--text-secondary)" }}>
+          我們已發送確認信至 <strong>{form.email}</strong>，請點擊信中的連結完成驗證。
+        </p>
+        <Link href="/auth/login" className="btn-primary w-full justify-center">前往登入</Link>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-8">
