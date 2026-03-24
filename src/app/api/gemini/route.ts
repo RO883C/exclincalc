@@ -89,6 +89,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "INVALID_MIME_TYPE" }, { status: 400 });
   }
 
+  // Helper: call Gemini with retry on 503
+  async function callWithRetry(fn: () => Promise<string>, retries = 2): Promise<string> {
+    for (let i = 0; i <= retries; i++) {
+      try { return await fn(); }
+      catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("503") && i < retries) {
+          await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new Error("Max retries exceeded");
+  }
+
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -98,8 +114,8 @@ export async function POST(req: NextRequest) {
     if (type === "analyze") {
       if (!text?.trim()) return NextResponse.json({ error: "EMPTY_INPUT" }, { status: 400 });
       prompt = `${SYSTEM_PROMPT}\n\n用戶提供的健康資訊：\n${text}\n\n請分析並給出易懂的健康建議。`;
-      const result = await model.generateContent(prompt);
-      return NextResponse.json({ result: result.response.text() });
+      const result = await callWithRetry(() => model.generateContent(prompt).then(r => r.response.text()));
+      return NextResponse.json({ result });
 
     } else if (type === "translate") {
       if (!text?.trim()) return NextResponse.json({ error: "EMPTY_INPUT" }, { status: 400 });
@@ -107,8 +123,8 @@ export async function POST(req: NextRequest) {
         ? "將以下繁體中文醫療文字精確翻譯為英文，並提供重要醫學術語中英對照表。"
         : "Translate the following English medical text to Traditional Chinese. Provide a glossary of important medical terms.";
       prompt = `${SYSTEM_PROMPT}\n\n${dir}\n\n原文：\n${text}`;
-      const result = await model.generateContent(prompt);
-      return NextResponse.json({ result: result.response.text() });
+      const result = await callWithRetry(() => model.generateContent(prompt).then(r => r.response.text()));
+      return NextResponse.json({ result });
 
     } else if (type === "scan") {
       if (!imageBase64 || !imageMimeType) {
@@ -118,12 +134,13 @@ export async function POST(req: NextRequest) {
         ? question.trim()
         : "請分析報告內容，列出所有數值，標示異常項目，並用一般人看得懂的語言解釋，最後提出建議。";
       prompt = `${SYSTEM_PROMPT}\n\n用戶問題：${q}\n\n請分析上傳的醫療文件圖片。`;
-
-      const result = await model.generateContent([
-        { text: prompt },
-        { inlineData: { mimeType: imageMimeType, data: imageBase64 } },
-      ]);
-      return NextResponse.json({ result: result.response.text() });
+      const result = await callWithRetry(() =>
+        model.generateContent([
+          { text: prompt },
+          { inlineData: { mimeType: imageMimeType, data: imageBase64 } },
+        ]).then(r => r.response.text())
+      );
+      return NextResponse.json({ result });
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
