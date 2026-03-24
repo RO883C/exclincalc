@@ -18,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-TW" suppressHydrationWarning>
-      <body>
+      <body suppressHydrationWarning>
         <ThemeProvider>
           <LanguageProvider>
             <DisclaimerModal />
