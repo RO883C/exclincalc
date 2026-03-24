@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
     let prompt = "";
 
@@ -126,7 +126,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ result: result.response.text() });
     }
   } catch (err: unknown) {
-    console.error("[Gemini API error]", err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Gemini API error]", msg);
+    if (msg.includes("429") || msg.includes("quota") || msg.includes("Too Many")) {
+      return NextResponse.json(
+        { error: "QUOTA_EXCEEDED", message: "API 配額已達上限，請稍後再試（免費版每分鐘限 15 次）" },
+        { status: 429 }
+      );
+    }
+    if (msg.includes("API_KEY_INVALID") || msg.includes("400")) {
+      return NextResponse.json(
+        { error: "INVALID_KEY", message: "API Key 無效，請檢查設定" },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
       { error: "GEMINI_ERROR", message: "AI 處理失敗，請稍後再試" },
       { status: 500 }
