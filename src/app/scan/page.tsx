@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useLang } from "@/contexts/LanguageContext";
-import { saveRecord } from "@/lib/healthStore";
+import { saveRecord, saveRecordCloud } from "@/lib/healthStore";
 
 type Mode = "scan" | "translate";
 
@@ -100,8 +100,10 @@ export default function ScanPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSave = () => {
-    saveRecord({ date: new Date().toISOString(), source: "scan", aiAnalysis: result, data: {} });
+  const handleSave = async () => {
+    const record = { date: new Date().toISOString(), source: "scan" as const, aiAnalysis: result, data: {} };
+    saveRecord(record);
+    await saveRecordCloud(record);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
