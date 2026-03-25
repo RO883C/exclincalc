@@ -152,10 +152,40 @@ npm run lint         # 程式碼檢查
 
 ---
 
+## 工具腳本 (`scripts/`)
+
+| 檔案 | 執行方式 | 說明 |
+|------|---------|------|
+| `sync-references.mjs` | `node scripts/sync-references.mjs` | 將 `referenceRanges.ts` 同步至 Supabase `medical_references` 表 |
+
+**GitHub Action 自動排程：** `.github/workflows/sync-references.yml`
+- 每月 1 日台灣時間 08:00 自動執行
+- 可在 GitHub Actions 頁面手動觸發
+- 需要 GitHub Secrets：`SUPABASE_URL`、`SUPABASE_SERVICE_KEY`
+
+---
+
+## Supabase 資料表（完整）
+
+| 表格 | 說明 | RLS |
+|------|------|-----|
+| `profiles` | 用戶個人資料 | 僅本人讀寫 |
+| `health_records` | 健康記錄（manual/scan/analyze） | 僅本人 |
+| `medications` | 藥物資料庫（~30+ 種常見藥） | 公開讀取 |
+| `medical_references` | 醫療參考值（可替換本地 JSON） | 公開讀取 |
+
+### 建表 SQL 位置
+- `supabase/medications.sql` — 建表語法
+- `supabase/seed_medications.sql` — 種子資料（常見藥物）
+
+---
+
 ## 待開發 (TODO)
 
-- [ ] `/check` 頁面整合 `localAnalysis.ts` 顯示本地分析結果
 - [ ] 健康記錄從 localStorage 遷移至 Supabase `health_records`
 - [ ] `/profile` 個人設定頁面（修改姓名、性別、生日）
-- [ ] Navbar 顯示登入狀態（登入/登出按鈕）
+- [ ] Navbar 顯示登入狀態（已登入顯示頭像/登出）
+- [ ] 藥物查詢頁面（搜尋藥名、查看副作用、交互作用）
+- [ ] 執行 `supabase/medications.sql` 和 `seed_medications.sql` 建立藥物資料庫
+- [ ] 設定 GitHub Secrets（`SUPABASE_SERVICE_KEY`）啟用自動同步
 - [ ] 共用醫療參考值資料庫與 exclinclac 專案整合

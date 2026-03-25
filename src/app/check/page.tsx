@@ -8,10 +8,11 @@ import {
   checkAbnormal,
   type ReferenceItem,
 } from "@/lib/referenceRanges";
+import { analyzeLocally, type AnalysisSummary } from "@/lib/localAnalysis";
 import { saveRecord, getProfile, type UserProfile } from "@/lib/healthStore";
 import {
   ChevronDown, ChevronUp, Info, Send, AlertTriangle,
-  CheckCircle2, AlertCircle, HelpCircle, Copy, Check, Trash2
+  CheckCircle2, AlertCircle, Copy, Check, Trash2, Zap, Brain
 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 
@@ -83,6 +84,7 @@ export default function CheckPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [localResult, setLocalResult] = useState<AnalysisSummary | null>(null);
 
   useEffect(() => {
     setProfile(getProfile());
@@ -103,6 +105,20 @@ export default function CheckPage() {
       setForm((prev) => ({ ...prev, bmi }));
     }
   }, [form.height, form.weight]);
+
+  // Run local analysis whenever form changes
+  useEffect(() => {
+    const numericForm: Record<string, number> = {};
+    for (const [k, v] of Object.entries(form)) {
+      const n = parseFloat(v);
+      if (!isNaN(n)) numericForm[k] = n;
+    }
+    if (Object.keys(numericForm).length > 0) {
+      setLocalResult(analyzeLocally(numericForm, profile.gender));
+    } else {
+      setLocalResult(null);
+    }
+  }, [form, profile.gender]);
 
   const filledItems = REFERENCE_RANGES.filter(
     (r) => form[r.key] !== undefined && form[r.key] !== ""
@@ -354,6 +370,100 @@ ${symptoms || "（無）"}
         </div>
       )}
 
+      {/* ── Local Instant Analysis ── */}
+      {localResult && localResult.items.length > 0 && (
+        <div className="card p-5 mb-5 fade-in">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap size={16} style={{ color: "var(--accent)" }} />
+            <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+              即時數據分析
+            </span>
+            <span className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: "var(--accent-dim)", color: "var(--accent)" }}>
+              參考值資料庫
+            </span>
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { label: "正常", count: localResult.normalCount, color: "var(--accent)" },
+              { label: "偏高", count: localResult.highCount, color: "var(--warning)" },
+              { label: "偏低", count: localResult.lowCount, color: "#60a5fa" },
+            ].map(({ label, count, color }) => (
+              <div key={label} className="rounded-lg p-3 text-center"
+                style={{ background: "var(--bg-base)" }}>
+                <div className="text-xl font-bold" style={{ color }}>{count}</div>
+                <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Risk flags */}
+          {localResult.riskFlags.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {localResult.riskFlags.map((flag, i) => (
+                <div key={i} className="text-sm p-2 rounded-lg"
+                  style={{ background: "rgba(245,158,11,0.07)", color: "var(--text-primary)" }}>
+                  {flag}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Abnormal items detail */}
+          {localResult.items.filter(i => i.status !== "normal").length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>
+                異常項目詳情
+              </p>
+              <div className="space-y-2">
+                {localResult.items.filter(i => i.status !== "normal" && i.status !== "unknown").map(item => (
+                  <div key={item.key} className="flex items-start gap-3 p-3 rounded-lg"
+                    style={{ background: "var(--bg-base)", border: "1px solid var(--border)" }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                          {item.label_zh}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded"
+                          style={{
+                            background: item.status === "high" ? "rgba(245,158,11,0.15)" : "rgba(96,165,250,0.15)",
+                            color: item.status === "high" ? "var(--warning)" : "#60a5fa",
+                          }}>
+                          {item.value} {item.unit} {item.status === "high" ? "↑ 偏高" : "↓ 偏低"}
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                        參考範圍：{item.normalRange} {item.unit}
+                      </p>
+                      <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                        {item.explanation_zh.slice(0, 80)}...
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Suggestions */}
+          <div className="space-y-1">
+            {localResult.suggestions.map((s, i) => (
+              <p key={i} className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{s}</p>
+            ))}
+          </div>
+
+          <div className="mt-3 pt-3 flex items-center gap-2"
+            style={{ borderTop: "1px solid var(--border)" }}>
+            <Brain size={13} style={{ color: "var(--accent)" }} />
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+              想要更深入的個人化分析？點下方「AI 深度分析」
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex flex-wrap gap-2 mb-6">
         <button
@@ -370,8 +480,8 @@ ${symptoms || "（無）"}
             </>
           ) : (
             <>
-              <Send size={15} />
-              AI 分析
+              <Brain size={15} />
+              AI 深度分析
             </>
           )}
         </button>
