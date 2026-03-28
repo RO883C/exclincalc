@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { LogIn, Eye, EyeOff, AlertCircle, Mail, Lock } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LogIn, Eye, EyeOff, AlertCircle, Mail, Lock, Stethoscope } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
-export default function LoginPage() {
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isUnauthorized = searchParams.get("error") === "unauthorized";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,123 +26,134 @@ export default function LoginPage() {
       setError(err.message.includes("Invalid login") ? "電子郵件或密碼錯誤" : err.message);
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      const redirect = searchParams.get("redirect") || "/pro/dashboard";
+      router.push(redirect);
       router.refresh();
     }
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg mx-auto mb-3"
-            style={{ background: "var(--accent)", color: "#000" }}>
-            C+
+    <div style={{
+      background: "#0f1e35",
+      border: "1px solid #1e3a5f",
+      borderRadius: 14,
+      padding: "28px 28px",
+    }}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Email */}
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+            電子郵件
+          </label>
+          <div style={{ position: "relative" }}>
+            <Mail size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+            <input
+              type="email" required value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="doctor@hospital.com"
+              style={{
+                width: "100%", background: "#07111f", border: "1px solid #1e3a5f",
+                borderRadius: 8, padding: "10px 12px 10px 36px",
+                color: "#e2e8f0", fontSize: 14, outline: "none",
+              }}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = "#3b82f6"}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = "#1e3a5f"}
+            />
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-            登入帳號
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            Sign in to your ClinCalc account
-          </p>
         </div>
 
-        <div className="card p-6">
-          <form onSubmit={submit} className="space-y-4">
-            {/* Email */}
-            <div>
-              <label className="text-sm font-medium block mb-1.5"
-                style={{ color: "var(--text-primary)" }}>
-                電子郵件 / Email
-              </label>
-              <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }} />
-                <input
-                  type="email"
-                  required
-                  className="input-field pl-9"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="text-sm font-medium block mb-1.5"
-                style={{ color: "var(--text-primary)" }}>
-                密碼 / Password
-              </label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }} />
-                <input
-                  type={showPw ? "text" : "password"}
-                  required
-                  className="input-field pl-9 pr-10"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }}>
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg text-sm"
-                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--danger)" }}>
-                <AlertCircle size={14} />
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center"
-              style={{ opacity: loading ? 0.7 : 1 }}>
-              {loading ? (
-                <>
-                  <span className="loading-dot" />
-                  <span className="loading-dot" style={{ animationDelay: "0.2s" }} />
-                  <span className="loading-dot" style={{ animationDelay: "0.4s" }} />
-                </>
-              ) : (
-                <>
-                  <LogIn size={15} />
-                  登入 / Sign In
-                </>
-              )}
+        {/* Password */}
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+            密碼
+          </label>
+          <div style={{ position: "relative" }}>
+            <Lock size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+            <input
+              type={showPw ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                width: "100%", background: "#07111f", border: "1px solid #1e3a5f",
+                borderRadius: 8, padding: "10px 40px 10px 36px",
+                color: "#e2e8f0", fontSize: 14, outline: "none",
+              }}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = "#3b82f6"}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = "#1e3a5f"}
+            />
+            <button type="button" onClick={() => setShowPw(!showPw)}
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+              {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
-          </form>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>還沒有帳號？</span>
-            <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
           </div>
-
-          <Link href="/auth/register"
-            className="btn-ghost w-full justify-center text-sm">
-            立即註冊 / Create Account
-          </Link>
         </div>
 
-        {/* Disclaimer */}
-        <p className="text-center text-xs mt-4 leading-relaxed"
-          style={{ color: "var(--text-secondary)" }}>
-          登入即表示您同意我們的
-          <Link href="/about" className="mx-1 underline" style={{ color: "var(--accent)" }}>
-            使用條款與免責聲明
-          </Link>
+        {isUnauthorized && !error && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 8, background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.25)", color: "#ca8a04", fontSize: 13 }}>
+            <AlertCircle size={14} />
+            此帳號尚未取得醫師權限，請聯繫管理員開通 is_pro 權限
+          </div>
+        )}
+        {error && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: 13 }}>
+            <AlertCircle size={14} />
+            {error}
+          </div>
+        )}
+
+        <button type="submit" disabled={loading} style={{
+          background: loading ? "#1d4ed8" : "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+          color: "#fff", fontWeight: 700, padding: "11px", borderRadius: 8,
+          border: "none", cursor: loading ? "default" : "pointer",
+          fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          transition: "opacity 0.2s",
+          opacity: loading ? 0.8 : 1,
+        }}>
+          {loading ? "登入中..." : <><LogIn size={15} /> 登入系統</>}
+        </button>
+      </form>
+
+      <div style={{ borderTop: "1px solid #1e3a5f", marginTop: 20, paddingTop: 16, textAlign: "center" }}>
+        <span style={{ fontSize: 13, color: "#94a3b8" }}>尚未有帳號？ </span>
+        <Link href="/auth/register" style={{ fontSize: 13, color: "#3b82f6", textDecoration: "none", fontWeight: 600 }}>
+          申請帳號
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#07111f",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px 16px",
+    }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, margin: "0 auto 14px",
+            background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Stethoscope size={24} color="#fff" />
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>
+            ClinCalc Pro
+          </h1>
+          <p style={{ fontSize: 13, color: "#94a3b8" }}>醫師臨床決策系統 · 請登入</p>
+        </div>
+
+        {/* Card */}
+        <Suspense fallback={<div style={{ background: "#0f1e35", border: "1px solid #1e3a5f", borderRadius: 14, padding: "28px", color: "#94a3b8", textAlign: "center" }}>載入中...</div>}>
+          <LoginForm />
+        </Suspense>
+
+        <p style={{ textAlign: "center", fontSize: 11, color: "#475569", marginTop: 16 }}>
+          ClinCalc Pro · 本系統僅供授權醫事人員使用
         </p>
       </div>
     </div>

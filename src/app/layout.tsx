@@ -1,32 +1,16 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/contexts/ThemeContext";
-import { LanguageProvider } from "@/contexts/LanguageContext";
-import Navbar from "@/components/Navbar";
-import DisclaimerModal from "@/components/DisclaimerModal";
 
 export const metadata: Metadata = {
-  title: "ClinCalc | 精準計算臨床決策平台",
-  description:
-    "AI 驅動的健康自查平台，支援圖片辨識、數據分析、醫療翻譯。AI-powered health platform with image recognition, data analysis, and medical translation.",
+  title: "ClinCalc Pro | 醫師臨床決策系統",
+  description: "ClinCalc Pro — 專為醫師設計的 AI 臨床決策支援平台",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-TW" suppressHydrationWarning>
+    <html lang="zh-TW" className="dark" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <ThemeProvider>
-          <LanguageProvider>
-            <DisclaimerModal />
-            <Navbar />
-            {/* pb-20 = space for mobile bottom nav */}
-            <main className="pb-20 md:pb-0">{children}</main>
-          </LanguageProvider>
-        </ThemeProvider>
+        {children}
       </body>
     </html>
   );

@@ -2,26 +2,28 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { UserPlus, Eye, EyeOff, AlertCircle, Mail, Lock, User, AlertTriangle } from "lucide-react";
+import { UserPlus, Eye, EyeOff, AlertCircle, Mail, Lock, User, Stethoscope } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const router = useRouter();
 
-  const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  const inputStyle = {
+    width: "100%", background: "#07111f", border: "1px solid #1e3a5f",
+    borderRadius: 8, padding: "10px 12px 10px 36px",
+    color: "#e2e8f0", fontSize: 14, outline: "none",
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password !== form.confirm) { setError("兩次密碼不一致"); return; }
     if (form.password.length < 8) { setError("密碼至少需要 8 個字元"); return; }
-    if (!agreed) { setError("請閱讀並同意免責聲明"); return; }
     setLoading(true);
     setError("");
     const supabase = createClient();
@@ -34,7 +36,6 @@ export default function RegisterPage() {
       setError(err.message.includes("already registered") ? "此電子郵件已被註冊" : err.message);
       setLoading(false);
     } else {
-      // update profile name
       const { data: { user } } = await supabase.auth.getUser();
       if (user) await supabase.from("profiles").update({ name: form.name }).eq("id", user.id);
       setSuccess(true);
@@ -42,153 +43,134 @@ export default function RegisterPage() {
     }
   };
 
+  const containerStyle = {
+    minHeight: "100vh", background: "#07111f",
+    display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px",
+  };
+
+  const cardStyle = {
+    background: "#0f1e35", border: "1px solid #1e3a5f",
+    borderRadius: 14, padding: "28px",
+  };
+
   if (success) return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="card p-8 text-center max-w-sm w-full">
-        <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
-          style={{ background: "rgba(0,212,170,0.1)" }}>
-          <Mail size={28} style={{ color: "var(--accent)" }} />
+    <div style={containerStyle}>
+      <div style={{ ...cardStyle, width: "100%", maxWidth: 380, textAlign: "center" }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", margin: "0 auto 14px", background: "rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Mail size={26} color="#3b82f6" />
         </div>
-        <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>確認您的電子郵件</h2>
-        <p className="text-sm leading-relaxed mb-6" style={{ color: "var(--text-secondary)" }}>
-          我們已發送確認信至 <strong>{form.email}</strong>，請點擊信中的連結完成驗證。
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>請確認您的電子郵件</h2>
+        <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.7, marginBottom: 20 }}>
+          已發送確認信至 <strong style={{ color: "#e2e8f0" }}>{form.email}</strong>，<br />
+          請點擊信中連結完成驗證。<br />
+          驗證後，請聯絡管理員開通醫師權限。
         </p>
-        <Link href="/auth/login" className="btn-primary w-full justify-center">前往登入</Link>
+        <Link href="/auth/login" style={{
+          display: "block", textAlign: "center", padding: "10px", borderRadius: 8,
+          background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+          color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none",
+        }}>
+          前往登入
+        </Link>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm">
+    <div style={containerStyle}>
+      <div style={{ width: "100%", maxWidth: 400 }}>
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg mx-auto mb-3"
-            style={{ background: "var(--accent)", color: "#000" }}>
-            C+
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14, margin: "0 auto 12px",
+            background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Stethoscope size={22} color="#fff" />
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-            建立帳號
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            Create your ClinCalc account
-          </p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>申請醫師帳號</h1>
+          <p style={{ fontSize: 13, color: "#94a3b8" }}>ClinCalc Pro · 醫師臨床決策系統</p>
         </div>
 
-        <div className="card p-6">
-          <form onSubmit={submit} className="space-y-4">
-            {/* Name */}
-            <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: "var(--text-primary)" }}>
-                姓名 / Name
-              </label>
-              <div className="relative">
-                <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }} />
-                <input type="text" required className="input-field pl-9"
-                  placeholder="您的姓名" value={form.name} onChange={(e) => set("name", e.target.value)} />
+        <div style={cardStyle}>
+          <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[
+              { key: "name", label: "姓名", placeholder: "您的姓名", type: "text", icon: User },
+              { key: "email", label: "電子郵件", placeholder: "doctor@hospital.com", type: "email", icon: Mail },
+            ].map(({ key, label, placeholder, type, icon: Icon }) => (
+              <div key={key}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", display: "block", marginBottom: 5 }}>{label}</label>
+                <div style={{ position: "relative" }}>
+                  <Icon size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input type={type} required value={form[key as keyof typeof form]}
+                    onChange={e => set(key, e.target.value)} placeholder={placeholder} style={inputStyle}
+                    onFocus={e => (e.target as HTMLInputElement).style.borderColor = "#3b82f6"}
+                    onBlur={e => (e.target as HTMLInputElement).style.borderColor = "#1e3a5f"}
+                  />
+                </div>
               </div>
-            </div>
+            ))}
 
-            {/* Email */}
             <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: "var(--text-primary)" }}>
-                電子郵件 / Email
-              </label>
-              <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }} />
-                <input type="email" required className="input-field pl-9"
-                  placeholder="your@email.com" value={form.email} onChange={(e) => set("email", e.target.value)} />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: "var(--text-primary)" }}>
-                密碼 / Password
-              </label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }} />
-                <input type={showPw ? "text" : "password"} required className="input-field pl-9 pr-10"
-                  placeholder="至少 8 個字元" value={form.password} onChange={(e) => set("password", e.target.value)} />
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", display: "block", marginBottom: 5 }}>密碼（至少 8 字元）</label>
+              <div style={{ position: "relative" }}>
+                <Lock size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input type={showPw ? "text" : "password"} required value={form.password} onChange={e => set("password", e.target.value)}
+                  placeholder="••••••••" style={{ ...inputStyle, paddingRight: 40 }}
+                  onFocus={e => (e.target as HTMLInputElement).style.borderColor = "#3b82f6"}
+                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = "#1e3a5f"}
+                />
                 <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }}>
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+                  {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
 
-            {/* Confirm */}
             <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: "var(--text-primary)" }}>
-                確認密碼 / Confirm Password
-              </label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--text-secondary)" }} />
-                <input type={showPw ? "text" : "password"} required className="input-field pl-9"
-                  placeholder="再輸入一次密碼" value={form.confirm} onChange={(e) => set("confirm", e.target.value)}
-                  style={{ borderColor: form.confirm && form.confirm !== form.password ? "rgba(239,68,68,0.5)" : undefined }} />
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", display: "block", marginBottom: 5 }}>確認密碼</label>
+              <div style={{ position: "relative" }}>
+                <Lock size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input type={showPw ? "text" : "password"} required value={form.confirm} onChange={e => set("confirm", e.target.value)}
+                  placeholder="再輸入一次" style={{
+                    ...inputStyle,
+                    borderColor: form.confirm && form.confirm !== form.password ? "rgba(239,68,68,0.5)" : "#1e3a5f",
+                  }}
+                  onFocus={e => (e.target as HTMLInputElement).style.borderColor = "#3b82f6"}
+                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = form.confirm && form.confirm !== form.password ? "rgba(239,68,68,0.5)" : "#1e3a5f"}
+                />
               </div>
             </div>
 
-            {/* Disclaimer checkbox */}
-            <div className="p-3 rounded-lg" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.15)" }}>
-              <div className="flex items-start gap-2">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                  本平台提供之所有資訊及 AI 分析結果，僅供一般健康參考之用，不得作為醫療診斷或治療依據。緊急狀況請撥打 119。
-                </p>
-              </div>
-              <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)}
-                  className="w-4 h-4 rounded" />
-                <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                  我已閱讀並同意上述免責聲明
-                </span>
-              </label>
-            </div>
-
-            {/* Error */}
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg text-sm"
-                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--danger)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: 13 }}>
                 <AlertCircle size={14} />
                 {error}
               </div>
             )}
 
-            {/* Submit */}
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center"
-              style={{ opacity: loading ? 0.7 : 1 }}>
-              {loading ? (
-                <>
-                  <span className="loading-dot" />
-                  <span className="loading-dot" style={{ animationDelay: "0.2s" }} />
-                  <span className="loading-dot" style={{ animationDelay: "0.4s" }} />
-                </>
-              ) : (
-                <>
-                  <UserPlus size={15} />
-                  建立帳號 / Register
-                </>
-              )}
+            <button type="submit" disabled={loading} style={{
+              background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+              color: "#fff", fontWeight: 700, padding: "11px", borderRadius: 8,
+              border: "none", cursor: loading ? "default" : "pointer", fontSize: 14,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              opacity: loading ? 0.8 : 1,
+            }}>
+              {loading ? "申請中..." : <><UserPlus size={15} /> 申請帳號</>}
             </button>
           </form>
 
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>已有帳號？</span>
-            <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+          <div style={{ borderTop: "1px solid #1e3a5f", marginTop: 18, paddingTop: 14, textAlign: "center" }}>
+            <span style={{ fontSize: 13, color: "#94a3b8" }}>已有帳號？ </span>
+            <Link href="/auth/login" style={{ fontSize: 13, color: "#3b82f6", textDecoration: "none", fontWeight: 600 }}>
+              前往登入
+            </Link>
           </div>
-
-          <Link href="/auth/login" className="btn-ghost w-full justify-center text-sm">
-            返回登入 / Sign In
-          </Link>
         </div>
+
+        <p style={{ textAlign: "center", fontSize: 11, color: "#475569", marginTop: 14 }}>
+          帳號申請後需由管理員開通醫師權限
+        </p>
       </div>
     </div>
   );
