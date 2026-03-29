@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import {
   Users, Shield, ShieldOff, Trash2, KeyRound,
-  CheckCircle, XCircle, Crown, RefreshCw, ChevronDown,
+  CheckCircle, RefreshCw, ChevronDown, ChevronRight,
 } from "lucide-react";
 
-// ── Role definitions ──────────────────────────────────────────
+// ── Role definitions (Pro roles only) ─────────────────────────────
+const ROLE_ORDER = ["super_admin", "admin", "doctor", "pharmacist", "nurse", "admin_staff"] as const;
+
 const ROLES: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   super_admin: { label: "超級管理員", color: "#a855f7", bg: "rgba(168,85,247,0.12)", icon: "👑" },
   admin:       { label: "管理員",     color: "#3b82f6", bg: "rgba(59,130,246,0.12)", icon: "🛡️" },
@@ -15,6 +17,9 @@ const ROLES: Record<string, { label: string; color: string; bg: string; icon: st
   nurse:       { label: "護理師",     color: "#ec4899", bg: "rgba(236,72,153,0.10)", icon: "🏥" },
   admin_staff: { label: "行政人員",   color: "#64748b", bg: "rgba(100,116,139,0.10)", icon: "📋" },
 };
+
+// USER = ClinCalc 一般用戶（is_pro = false），無 Pro 登入權限
+const USER_DISPLAY = { label: "一般用戶", color: "#475569", bg: "rgba(71,85,105,0.08)", icon: "👤" };
 
 type ProRole = keyof typeof ROLES;
 
@@ -38,6 +43,7 @@ export default function AdminUsersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<ProRole>("doctor");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const [resetModal, setResetModal] = useState<{ userId: string; email: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -106,22 +112,211 @@ export default function AdminUsersPage() {
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   };
 
-  // Can the current user change target user's role?
   const canChangeRole = (target: UserRow) => {
-    if (target.id === currentUserId) return false;           // can't change own role
-    if (target.pro_role === "super_admin") return false;     // super_admin is immutable
-    if (currentRole === "super_admin") return true;          // super_admin can change all
+    if (target.id === currentUserId) return false;
+    if (!target.is_pro) return false;
+    if (target.pro_role === "super_admin") return false;
+    if (currentRole === "super_admin") return true;
     if (currentRole === "admin") return target.pro_role !== "admin" && target.pro_role !== "super_admin";
     return false;
   };
 
   const canDelete = (target: UserRow) => {
     if (target.id === currentUserId) return false;
-    if (target.pro_role === "super_admin") return false;
+    if (target.pro_role === "super_admin" && target.is_pro) return false;
     return true;
   };
 
   const closeDropdown = () => { setRoleDropdown(null); setDropdownPos(null); };
+  const toggleCollapse = (key: string) => setCollapsed(p => ({ ...p, [key]: !p[key] }));
+
+  // Group users by role (Pro) or as regular user (non-Pro)
+  const proUsers = users.filter(u => u.is_pro);
+  const regularUsers = users.filter(u => !u.is_pro);
+  const grouped = ROLE_ORDER
+    .map(role => ({ role, info: ROLES[role], members: proUsers.filter(u => u.pro_role === role) }))
+    .filter(g => g.members.length > 0);
+
+  const GroupHeader = ({ groupKey, icon, label, color, bg, count }: {
+    groupKey: string; icon: string; label: string; color: string; bg: string; count: number;
+  }) => (
+    <tr
+      onClick={() => toggleCollapse(groupKey)}
+      style={{ background: bg, cursor: "pointer", borderBottom: "1px solid var(--pro-border)" }}
+    >
+      <td colSpan={5} style={{ padding: "8px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {collapsed[groupKey]
+            ? <ChevronRight size={13} color={color} />
+            : <ChevronDown size={13} color={color} />
+          }
+          <span style={{ fontSize: 12, fontWeight: 700, color }}>{icon} {label}</span>
+          <span style={{
+            fontSize: 11, padding: "1px 7px", borderRadius: 10,
+            background: `${color}20`, color, fontWeight: 600,
+          }}>{count}</span>
+        </div>
+      </td>
+    </tr>
+  );
+
+  const ProUserRow = ({ u }: { u: UserRow }) => {
+    const roleInfo = ROLES[u.pro_role] ?? ROLES.doctor;
+    const isSelf = u.id === currentUserId;
+    return (
+      <tr style={{ borderBottom: "1px solid var(--pro-border)", background: isSelf ? "rgba(59,130,246,0.04)" : undefined }}>
+        <td style={{ padding: "11px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13, color: "var(--pro-text)", fontWeight: 500 }}>{u.email}</span>
+            {isSelf && <span style={{ fontSize: 10, color: "var(--pro-accent)", background: "var(--pro-accent-dim)", padding: "1px 5px", borderRadius: 8 }}>我</span>}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--pro-text-muted)", marginTop: 2 }}>
+            {fmt(u.created_at)}{u.institution && ` · ${u.institution}`}
+            {!u.email_confirmed_at && <span style={{ color: "#eab308" }}> · ⚠ 未驗證</span>}
+          </div>
+        </td>
+
+        {/* Role — dropdown */}
+        <td style={{ padding: "11px 14px" }}>
+          <div onClick={e => e.stopPropagation()}>
+            <button
+              onClick={(e) => {
+                if (!canChangeRole(u)) return;
+                if (roleDropdown === u.id) { closeDropdown(); return; }
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+                setRoleDropdown(u.id);
+              }}
+              disabled={!canChangeRole(u)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                background: roleInfo.bg, color: roleInfo.color,
+                border: `1px solid ${roleInfo.color}40`,
+                cursor: canChangeRole(u) ? "pointer" : "default",
+              }}
+            >
+              {roleInfo.icon} {roleInfo.label}
+              {canChangeRole(u) && <ChevronDown size={10} />}
+            </button>
+          </div>
+        </td>
+
+        <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--pro-text-muted)" }}>
+          {fmt(u.last_sign_in_at)}
+        </td>
+
+        <td style={{ padding: "11px 14px" }}>
+          <div style={{ display: "flex", gap: 8, fontSize: 12, color: "var(--pro-text-muted)" }}>
+            <span>👤 {u.patients}</span>
+            <span>📋 {u.records}</span>
+            <span>📝 {u.notes}</span>
+          </div>
+        </td>
+
+        <td style={{ padding: "11px 14px" }}>
+          <div style={{ display: "flex", gap: 5 }}>
+            <button
+              onClick={() => !isSelf && patch(u.id, { is_pro: !u.is_pro })}
+              disabled={actionLoading === u.id || isSelf}
+              title={u.is_pro ? "撤銷 Pro 授權" : "授予 Pro 授權"}
+              style={{
+                padding: "4px 8px", borderRadius: 5, fontSize: 11,
+                cursor: isSelf ? "default" : "pointer",
+                border: `1px solid ${u.is_pro ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
+                background: "transparent",
+                color: u.is_pro ? "var(--pro-danger)" : "#22c55e",
+                opacity: isSelf ? 0.4 : 1,
+              }}
+            >
+              {u.is_pro ? <ShieldOff size={11} /> : <Shield size={11} />}
+            </button>
+            <button
+              onClick={() => { setResetModal({ userId: u.id, email: u.email }); setNewPassword(""); setPwError(""); }}
+              title="重設密碼"
+              style={{
+                padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
+                border: "1px solid var(--pro-border)",
+                background: "transparent", color: "var(--pro-text-muted)",
+              }}
+            >
+              <KeyRound size={11} />
+            </button>
+            {canDelete(u) && (
+              <button
+                onClick={() => deleteUser(u)}
+                disabled={actionLoading === u.id}
+                title="刪除帳號"
+                style={{
+                  padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
+                  border: "1px solid rgba(239,68,68,0.2)",
+                  background: "transparent", color: "var(--pro-danger)",
+                }}
+              >
+                <Trash2 size={11} />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const RegularUserRow = ({ u }: { u: UserRow }) => (
+    <tr style={{ borderBottom: "1px solid var(--pro-border)" }}>
+      <td style={{ padding: "11px 14px" }}>
+        <div style={{ fontSize: 13, color: "var(--pro-text)", fontWeight: 500 }}>{u.email}</div>
+        <div style={{ fontSize: 10, color: "var(--pro-text-muted)", marginTop: 2 }}>
+          {fmt(u.created_at)}
+          {!u.email_confirmed_at && <span style={{ color: "#eab308" }}> · ⚠ 未驗證</span>}
+        </div>
+      </td>
+      <td style={{ padding: "11px 14px" }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+          background: USER_DISPLAY.bg, color: USER_DISPLAY.color,
+          border: `1px solid ${USER_DISPLAY.color}40`,
+        }}>
+          {USER_DISPLAY.icon} {USER_DISPLAY.label}
+        </span>
+      </td>
+      <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--pro-text-muted)" }}>
+        {fmt(u.last_sign_in_at)}
+      </td>
+      <td style={{ padding: "11px 14px" }}>
+        <span style={{ fontSize: 11, color: "var(--pro-text-muted)", fontStyle: "italic" }}>ClinCalc 健康記錄</span>
+      </td>
+      <td style={{ padding: "11px 14px" }}>
+        <div style={{ display: "flex", gap: 5 }}>
+          <button
+            onClick={() => patch(u.id, { is_pro: true })}
+            disabled={actionLoading === u.id}
+            title="授予 Pro 權限"
+            style={{
+              padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
+              border: "1px solid rgba(34,197,94,0.3)",
+              background: "transparent", color: "#22c55e",
+            }}
+          >
+            <Shield size={11} />
+          </button>
+          <button
+            onClick={() => deleteUser(u)}
+            disabled={actionLoading === u.id}
+            title="刪除帳號"
+            style={{
+              padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
+              border: "1px solid rgba(239,68,68,0.2)",
+              background: "transparent", color: "var(--pro-danger)",
+            }}
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
 
   return (
     <div onClick={closeDropdown}>
@@ -132,29 +327,12 @@ export default function AdminUsersPage() {
             <Users size={18} color="var(--pro-accent)" /> 帳號管理
           </h1>
           <span style={{ fontSize: 12, color: "var(--pro-text-muted)", background: "var(--pro-card)", padding: "2px 8px", borderRadius: 10, border: "1px solid var(--pro-border)" }}>
-            共 {users.length} 個帳號
+            Pro {proUsers.length} · 用戶 {regularUsers.length}
           </span>
         </div>
         <button onClick={load} style={{ background: "none", border: "1px solid var(--pro-border)", borderRadius: 7, padding: "6px 12px", color: "var(--pro-text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
           <RefreshCw size={12} /> 重新整理
         </button>
-      </div>
-
-      {/* Role legend */}
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16,
-        padding: "10px 14px", borderRadius: 8,
-        background: "var(--pro-bg)", border: "1px solid var(--pro-border)",
-      }}>
-        <span style={{ fontSize: 11, color: "var(--pro-text-muted)", fontWeight: 600, marginRight: 4 }}>角色說明：</span>
-        {Object.entries(ROLES).map(([key, r]) => (
-          <span key={key} style={{
-            fontSize: 11, padding: "2px 8px", borderRadius: 10,
-            background: r.bg, color: r.color, fontWeight: 600,
-          }}>
-            {r.icon} {r.label}
-          </span>
-        ))}
       </div>
 
       {loading ? (
@@ -164,7 +342,7 @@ export default function AdminUsersPage() {
           <table className="pro-table" style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                {["電子郵件", "Pro 狀態", "角色", "最後登入", "活動量", "操作"].map((h) => (
+                {["電子郵件", "角色", "最後登入", "活動量", "操作"].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--pro-text-muted)", borderBottom: "1px solid var(--pro-border)", background: "var(--pro-bg)" }}>
                     {h}
                   </th>
@@ -172,138 +350,37 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
-                const roleInfo = ROLES[u.pro_role] ?? ROLES.doctor;
-                const isSelf = u.id === currentUserId;
-                return (
-                  <tr key={u.id} style={{
-                    borderBottom: "1px solid var(--pro-border)",
-                    background: isSelf ? "rgba(59,130,246,0.04)" : undefined,
-                  }}>
-                    {/* Email */}
-                    <td style={{ padding: "11px 14px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 13, color: "var(--pro-text)", fontWeight: 500 }}>{u.email}</span>
-                        {isSelf && <span style={{ fontSize: 10, color: "var(--pro-accent)", background: "var(--pro-accent-dim)", padding: "1px 5px", borderRadius: 8 }}>我</span>}
-                      </div>
-                      <div style={{ fontSize: 10, color: "var(--pro-text-muted)", marginTop: 2 }}>
-                        {fmt(u.created_at)}{u.institution && ` · ${u.institution}`}
-                        {!u.email_confirmed_at && <span style={{ color: "#eab308" }}> · ⚠ 未驗證</span>}
-                      </div>
-                    </td>
+              {/* Pro user groups — sorted by ROLE_ORDER */}
+              {grouped.map(({ role, info, members }) => (
+                <>
+                  <GroupHeader
+                    key={`hdr-${role}`}
+                    groupKey={role}
+                    icon={info.icon}
+                    label={info.label}
+                    color={info.color}
+                    bg={info.bg}
+                    count={members.length}
+                  />
+                  {!collapsed[role] && members.map(u => <ProUserRow key={u.id} u={u} />)}
+                </>
+              ))}
 
-                    {/* Pro status */}
-                    <td style={{ padding: "11px 14px" }}>
-                      <button
-                        onClick={() => !isSelf && patch(u.id, { is_pro: !u.is_pro })}
-                        disabled={actionLoading === u.id || isSelf}
-                        title={u.is_pro ? "點擊撤銷 Pro 權限" : "點擊授予 Pro 權限"}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
-                          background: u.is_pro ? "rgba(34,197,94,0.1)" : "rgba(100,116,139,0.1)",
-                          color: u.is_pro ? "#22c55e" : "var(--pro-text-muted)",
-                          border: `1px solid ${u.is_pro ? "rgba(34,197,94,0.3)" : "var(--pro-border)"}`,
-                          cursor: isSelf ? "default" : "pointer",
-                        }}
-                      >
-                        {u.is_pro ? <CheckCircle size={10} /> : <XCircle size={10} />}
-                        {u.is_pro ? "已授權" : "未授權"}
-                      </button>
-                    </td>
-
-                    {/* Role — dropdown (position:fixed to avoid table overflow clipping) */}
-                    <td style={{ padding: "11px 14px" }}>
-                      <div onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={(e) => {
-                            if (!canChangeRole(u)) return;
-                            if (roleDropdown === u.id) { closeDropdown(); return; }
-                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                            setDropdownPos({ top: rect.bottom + 4, left: rect.left });
-                            setRoleDropdown(u.id);
-                          }}
-                          disabled={!canChangeRole(u)}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 5,
-                            padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
-                            background: roleInfo.bg, color: roleInfo.color,
-                            border: `1px solid ${roleInfo.color}40`,
-                            cursor: canChangeRole(u) ? "pointer" : "default",
-                          }}
-                        >
-                          {roleInfo.icon} {roleInfo.label}
-                          {canChangeRole(u) && <ChevronDown size={10} />}
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Last login */}
-                    <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--pro-text-muted)" }}>
-                      {fmt(u.last_sign_in_at)}
-                    </td>
-
-                    {/* Activity */}
-                    <td style={{ padding: "11px 14px" }}>
-                      <div style={{ display: "flex", gap: 8, fontSize: 12, color: "var(--pro-text-muted)" }}>
-                        <span>👤 {u.patients}</span>
-                        <span>📋 {u.records}</span>
-                        <span>📝 {u.notes}</span>
-                      </div>
-                    </td>
-
-                    {/* Actions */}
-                    <td style={{ padding: "11px 14px" }}>
-                      <div style={{ display: "flex", gap: 5 }}>
-                        {/* Toggle Pro */}
-                        <button
-                          onClick={() => !isSelf && patch(u.id, { is_pro: !u.is_pro })}
-                          disabled={actionLoading === u.id || isSelf}
-                          title={u.is_pro ? "撤銷授權" : "授予授權"}
-                          style={{
-                            padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: isSelf ? "default" : "pointer",
-                            border: `1px solid ${u.is_pro ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
-                            background: "transparent",
-                            color: u.is_pro ? "var(--pro-danger)" : "#22c55e",
-                            opacity: isSelf ? 0.4 : 1,
-                          }}
-                        >
-                          {u.is_pro ? <ShieldOff size={11} /> : <Shield size={11} />}
-                        </button>
-
-                        {/* Reset Password */}
-                        <button
-                          onClick={() => { setResetModal({ userId: u.id, email: u.email }); setNewPassword(""); setPwError(""); }}
-                          title="重設密碼"
-                          style={{
-                            padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
-                            border: "1px solid var(--pro-border)",
-                            background: "transparent", color: "var(--pro-text-muted)",
-                          }}
-                        >
-                          <KeyRound size={11} />
-                        </button>
-
-                        {/* Delete */}
-                        {canDelete(u) && (
-                          <button
-                            onClick={() => deleteUser(u)}
-                            disabled={actionLoading === u.id}
-                            title="刪除帳號"
-                            style={{
-                              padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
-                              border: "1px solid rgba(239,68,68,0.2)",
-                              background: "transparent", color: "var(--pro-danger)",
-                            }}
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {/* USER group — ClinCalc 一般用戶 */}
+              {regularUsers.length > 0 && (
+                <>
+                  <GroupHeader
+                    key="hdr-user"
+                    groupKey="user"
+                    icon={USER_DISPLAY.icon}
+                    label={USER_DISPLAY.label}
+                    color={USER_DISPLAY.color}
+                    bg={USER_DISPLAY.bg}
+                    count={regularUsers.length}
+                  />
+                  {!collapsed["user"] && regularUsers.map(u => <RegularUserRow key={u.id} u={u} />)}
+                </>
+              )}
             </tbody>
           </table>
         </div>
