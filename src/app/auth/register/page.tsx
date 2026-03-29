@@ -27,20 +27,26 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
     const supabase = createClient();
-    const { error: err } = await supabase.auth.signUp({
+    const { data, error: err } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
-      options: {
-        data: { name: form.name },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { data: { name: form.name } },
     });
     if (err) {
-      setError(err.message.includes("already registered") ? "此電子郵件已被註冊" : err.message);
+      const msg = err.message;
+      if (msg.includes("already registered") || msg.includes("User already registered")) {
+        setError("此電子郵件已被註冊");
+      } else if (msg.includes("rate limit")) {
+        setError("系統繁忙，請稍後再試（或請聯繫管理員直接開通帳號）");
+      } else {
+        setError(msg);
+      }
       setLoading(false);
     } else {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) await supabase.from("profiles").update({ name: form.name }).eq("id", user.id);
+      // Update name in profile if user session is available (email confirm disabled)
+      if (data.user) {
+        await supabase.from("profiles").update({ name: form.name }).eq("id", data.user.id);
+      }
       setSuccess(true);
       setLoading(false);
     }
@@ -59,15 +65,18 @@ export default function RegisterPage() {
   if (success) return (
     <div style={containerStyle}>
       <div style={{ ...cardStyle, width: "100%", maxWidth: 380, textAlign: "center" }}>
-        <div style={{ width: 56, height: 56, borderRadius: "50%", margin: "0 auto 14px", background: "rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Mail size={26} color="#3b82f6" />
+        <div style={{ width: 56, height: 56, borderRadius: "50%", margin: "0 auto 14px", background: "rgba(34,197,94,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <UserPlus size={26} color="#22c55e" />
         </div>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>請確認您的電子郵件</h2>
-        <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.7, marginBottom: 20 }}>
-          已發送確認信至 <strong style={{ color: "#e2e8f0" }}>{form.email}</strong>，<br />
-          請點擊信中連結完成驗證。<br />
-          驗證後，請聯絡管理員開通醫師權限。
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>申請已送出</h2>
+        <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.7, marginBottom: 8 }}>
+          帳號 <strong style={{ color: "#e2e8f0" }}>{form.email}</strong> 已建立。
         </p>
+        <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 8, padding: "12px 16px", marginBottom: 20 }}>
+          <p style={{ fontSize: 13, color: "#f59e0b", lineHeight: 1.7, margin: 0 }}>
+            ⚠ 帳號需由管理員開通醫師權限後才能登入系統，請聯繫您的機構管理員。
+          </p>
+        </div>
         <Link href="/auth/login" style={{
           display: "block", textAlign: "center", padding: "10px", borderRadius: 8,
           background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
