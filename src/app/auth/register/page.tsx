@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { UserPlus, Eye, EyeOff, AlertCircle, Mail, Lock, User, Stethoscope } from "lucide-react";
-import { createClient } from "@/lib/supabase";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
@@ -26,27 +25,16 @@ export default function RegisterPage() {
     if (form.password.length < 8) { setError("密碼至少需要 8 個字元"); return; }
     setLoading(true);
     setError("");
-    const supabase = createClient();
-    const { data, error: err } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: { data: { name: form.name } },
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: form.email, password: form.password, name: form.name }),
     });
-    if (err) {
-      const msg = err.message;
-      if (msg.includes("already registered") || msg.includes("User already registered")) {
-        setError("此電子郵件已被註冊");
-      } else if (msg.includes("rate limit")) {
-        setError("系統繁忙，請稍後再試（或請聯繫管理員直接開通帳號）");
-      } else {
-        setError(msg);
-      }
+    const json = await res.json();
+    if (!res.ok) {
+      setError(json.error || "註冊失敗，請稍後再試");
       setLoading(false);
     } else {
-      // Update name in profile if user session is available (email confirm disabled)
-      if (data.user) {
-        await supabase.from("profiles").update({ name: form.name }).eq("id", data.user.id);
-      }
       setSuccess(true);
       setLoading(false);
     }
