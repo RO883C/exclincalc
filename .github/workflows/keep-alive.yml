@@ -1,0 +1,22 @@
+name: Keep Alive — Ping Supabase
+
+on:
+  schedule:
+    # 每 3 天 UTC 08:00 執行（台灣時間 16:00）
+    - cron: "0 8 */3 * *"
+  workflow_dispatch: # 允許手動觸發
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping ExClinCalc /api/ping
+        run: |
+          echo "Pinging https://exclincalc.netlify.app/api/ping ..."
+          RESPONSE=$(curl -s -o /tmp/ping.json -w "%{http_code}" https://exclincalc.netlify.app/api/ping)
+          cat /tmp/ping.json
+          if [ "$RESPONSE" != "200" ]; then
+            echo "❌ Ping failed with HTTP $RESPONSE"
+            exit 1
+          fi
+          echo "✅ Supabase is online"
