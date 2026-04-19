@@ -111,14 +111,17 @@ drop policy if exists "Users can manage own records" on health_records;
 create policy "Users can manage own records" on health_records
   for all using (auth.uid() = user_id);
 
-drop policy if exists "Pro doctors read all health_records" on health_records;
-create policy "Pro doctors read all health_records" on health_records
-  for select using (
-    exists (
-      select 1 from profiles
-      where id = auth.uid() and is_pro = true
-    )
-  );
+-- health_records: 醫師只能看被連結的病患（doctor_patients 關聯）
+-- 目前病患-醫師連結尚未實作，此 policy 暫不開放，避免隱私洩漏
+-- drop policy if exists "Pro doctors read linked patients records" on health_records;
+-- create policy "Pro doctors read linked patients records" on health_records
+--   for select using (
+--     exists (
+--       select 1 from doctor_patients dp
+--       where dp.doctor_id = auth.uid()
+--         and dp.patient_id = health_records.user_id
+--     )
+--   );
 
 create index if not exists health_records_user_id_idx     on health_records(user_id);
 create index if not exists health_records_created_at_idx  on health_records(created_at desc);
