@@ -1,0 +1,13 @@
+name = "exclincalc"
+main = ".open-next/worker.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# 環境變數請在 Cloudflare Workers 後台 → Settings → Variables and Secrets 設定
+# GEMINI_API_KEY（runtime secret）
+# SUPABASE_SERVICE_ROLE_KEY（runtime secret）
+# NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY 在 GitHub Actions 設定

@@ -12,8 +12,8 @@ jobs:
     steps:
       - name: Ping ExClinCalc /api/ping
         run: |
-          echo "Pinging https://exclincalc.netlify.app/api/ping ..."
-          RESPONSE=$(curl -s -o /tmp/ping.json -w "%{http_code}" https://exclincalc.netlify.app/api/ping)
+          echo "Pinging https://exclincalc.ro883c.workers.dev/api/ping ..."
+          RESPONSE=$(curl -s -o /tmp/ping.json -w "%{http_code}" https://exclincalc.ro883c.workers.dev/api/ping)
           cat /tmp/ping.json
           if [ "$RESPONSE" != "200" ]; then
             echo "❌ Ping failed with HTTP $RESPONSE"

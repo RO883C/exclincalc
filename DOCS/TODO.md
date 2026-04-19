@@ -7,20 +7,16 @@
 ## 🔴 高優先
 
 - [ ] **Cloudflare Pages 遷移**（取代 Netlify）
-  - [ ] `npm install -D @cloudflare/next-on-pages wrangler`
-  - [ ] 建立 `wrangler.toml`
+  - [ ] `npm install -D @opennextjs/cloudflare wrangler`
+    > ⚠️ 不是 `@cloudflare/next-on-pages`，後者只支援 Next.js ≤15，ClinCalc 已踩坑
+  - [ ] 建立 `wrangler.toml`（參考 ClinCalc 的 wrangler.toml）
   - [ ] 每個 API route 加 `export const runtime = 'edge'`
   - [ ] Cloudflare Dashboard 建立 Pages 專案，連接 RO883C/exclincalc
-  - [ ] 貼入環境變數（4 個）
-  - [ ] 更新 keep-alive.yml 的 URL
+  - [ ] Build command: `npx opennextjs-cloudflare build`
+  - [ ] Output directory: `.open-next/assets`
+  - [ ] 貼入環境變數（GEMINI_API_KEY、NEXT_PUBLIC_SUPABASE_URL、NEXT_PUBLIC_SUPABASE_ANON_KEY、SUPABASE_SERVICE_ROLE_KEY）
+  - [ ] 更新 keep-alive.yml 的 PING_URL
   - [ ] 更新 Supabase Redirect URLs
-
-- [ ] **移動專案資料夾**
-  - [ ] 建立統一父目錄（例如 `D:\Projects\`）
-  - [ ] 移動 `D:\exclinclac\exclincalc` → `D:\Projects\exclincalc`
-  - [ ] 移動 `D:\Clinclac` → `D:\Projects\clincalc`
-  - [ ] 更新 Claude Code 工作目錄
-  - [ ] 確認 `git remote -v` 正常（git 不受路徑影響）
 
 ---
 
