@@ -126,21 +126,33 @@ create policy "Users can manage own records" on health_records
 create index if not exists health_records_user_id_idx     on health_records(user_id);
 create index if not exists health_records_created_at_idx  on health_records(created_at desc);
 
--- Per-user record limit: prevent abuse / DB bloat (max 100 records per user)
-create or replace function check_health_records_limit()
+-- Per-user record FIFO: auto-delete oldest when > 100 records
+create or replace function rotate_health_records()
 returns trigger as $$
+declare
+  excess int;
 begin
-  if (select count(*) from health_records where user_id = NEW.user_id) >= 100 then
-    raise exception 'RECORD_LIMIT_EXCEEDED: max 100 health records per user';
+  select greatest(0, count(*) - 99) into excess
+  from health_records where user_id = NEW.user_id;
+
+  if excess > 0 then
+    delete from health_records
+    where id in (
+      select id from health_records
+      where user_id = NEW.user_id
+      order by created_at asc
+      limit excess
+    );
   end if;
   return NEW;
 end;
 $$ language plpgsql security definer;
 
 drop trigger if exists enforce_health_records_limit on health_records;
-create trigger enforce_health_records_limit
+drop trigger if exists rotate_health_records_trigger on health_records;
+create trigger rotate_health_records_trigger
   before insert on health_records
-  for each row execute function check_health_records_limit();
+  for each row execute function rotate_health_records();
 
 
 -- ───────────────────────────────────────────────────────────────────

@@ -9,7 +9,26 @@ function getAdminClient() {
   );
 }
 
+// Rate limit: max 5 registrations / IP / hour
+const registerRateMap = new Map<string, { count: number; resetAt: number }>();
+function checkRegisterLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = registerRateMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    registerRateMap.set(ip, { count: 1, resetAt: now + 3_600_000 });
+    return true;
+  }
+  if (entry.count >= 5) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown";
+  if (!checkRegisterLimit(ip)) {
+    return NextResponse.json({ error: "註冊次數過多，請 1 小時後再試" }, { status: 429 });
+  }
+
   const { email, password, name } = await req.json();
 
   if (!email || !password || password.length < 8) {
