@@ -126,6 +126,22 @@ create policy "Users can manage own records" on health_records
 create index if not exists health_records_user_id_idx     on health_records(user_id);
 create index if not exists health_records_created_at_idx  on health_records(created_at desc);
 
+-- Per-user record limit: prevent abuse / DB bloat (max 100 records per user)
+create or replace function check_health_records_limit()
+returns trigger as $$
+begin
+  if (select count(*) from health_records where user_id = NEW.user_id) >= 100 then
+    raise exception 'RECORD_LIMIT_EXCEEDED: max 100 health records per user';
+  end if;
+  return NEW;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists enforce_health_records_limit on health_records;
+create trigger enforce_health_records_limit
+  before insert on health_records
+  for each row execute function check_health_records_limit();
+
 
 -- ───────────────────────────────────────────────────────────────────
 -- 3. medications — 藥物資料庫
