@@ -595,7 +595,10 @@ export default function EncounterPage() {
               setActivePackages={setActivePackages}
               labValues={labValues}
               setLabValues={setLabValues}
-              suggestedPackages={template?.labPackages ?? []}
+              suggestedPackages={[...new Set(
+                complaints.flatMap((cc) => COMPLAINT_TEMPLATES.find((t) => t.complaint === cc)?.labPackages ?? [])
+              )]}
+              complaints={complaints}
             />
           )}
           {step === "diagnosis" && (
@@ -1191,18 +1194,76 @@ function StepPE({ template, findings, setFindings, notes, setNotes }: {
 
 // ── Step 5: Labs ──────────────────────────────────────────────
 
-function StepLabs({ activePackages, setActivePackages, labValues, setLabValues, suggestedPackages }: {
+function StepLabs({ activePackages, setActivePackages, labValues, setLabValues, suggestedPackages, complaints }: {
   activePackages: string[];
   setActivePackages: (v: string[]) => void;
   labValues: Record<string, string>;
   setLabValues: (v: Record<string, string>) => void;
   suggestedPackages: string[];
+  complaints: string[];
 }) {
   const STAGE_LABELS: Record<number, string> = { 1: "基礎", 2: "代謝", 3: "器官功能", 4: "特殊" };
   const toggle = (id: string) =>
     setActivePackages(activePackages.includes(id) ? activePackages.filter((p) => p !== id) : [...activePackages, id]);
 
+  const unselectedSuggestions = suggestedPackages.filter((id) => !activePackages.includes(id));
+  const applyAll = () =>
+    setActivePackages([...new Set([...activePackages, ...suggestedPackages])]);
+
   return (
+    <div>
+      {/* Suggestion banner */}
+      {suggestedPackages.length > 0 && (
+        <div style={{
+          marginBottom: 16, padding: "10px 14px", borderRadius: 8,
+          background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)",
+          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        }}>
+          <span style={{ fontSize: 13, color: "#f59e0b", fontWeight: 600, flexShrink: 0 }}>
+            ★ 主訴建議
+          </span>
+          <div style={{ flex: 1, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {suggestedPackages.map((id) => {
+              const pkg = EXAM_PACKAGES.find((p) => p.id === id);
+              if (!pkg) return null;
+              const active = activePackages.includes(id);
+              return (
+                <span key={id} onClick={() => toggle(id)} style={{
+                  padding: "3px 10px", borderRadius: 20, fontSize: 11, cursor: "pointer",
+                  fontWeight: 600, userSelect: "none",
+                  border: `1px solid ${active ? pkg.color : "rgba(245,158,11,0.4)"}`,
+                  background: active ? pkg.color + "20" : "transparent",
+                  color: active ? pkg.color : "#d97706",
+                  textDecoration: active ? "none" : "none",
+                }}>
+                  {pkg.icon} {pkg.label} {active ? "✓" : "+"}
+                </span>
+              );
+            })}
+          </div>
+          {unselectedSuggestions.length > 0 && (
+            <button onClick={applyAll} style={{
+              padding: "4px 12px", borderRadius: 6, border: "1px solid #f59e0b",
+              background: "#f59e0b", color: "#fff", fontSize: 11, fontWeight: 700,
+              cursor: "pointer", flexShrink: 0,
+            }}>
+              一鍵套用
+            </button>
+          )}
+          {unselectedSuggestions.length === 0 && (
+            <span style={{ fontSize: 11, color: "#22c55e", fontWeight: 600 }}>✓ 已全部套用</span>
+          )}
+        </div>
+      )}
+      {complaints.length === 0 && (
+        <div style={{
+          marginBottom: 16, padding: "10px 14px", borderRadius: 8,
+          background: "rgba(107,114,128,0.08)", border: "1px solid var(--pro-border)",
+          fontSize: 12, color: "var(--pro-text-muted)",
+        }}>
+          尚未選擇主訴，請先至步驟 1 選擇主訴以獲得建議套組
+        </div>
+      )}
     <div style={{ display: "flex", gap: 20 }}>
       {/* Package picker */}
       <div style={{ width: 250, flexShrink: 0 }}>
@@ -1278,6 +1339,7 @@ function StepLabs({ activePackages, setActivePackages, labValues, setLabValues, 
           );
         })}
       </div>
+    </div>
     </div>
   );
 }
