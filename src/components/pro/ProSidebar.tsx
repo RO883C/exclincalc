@@ -11,14 +11,27 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
-const MAIN_NAV = [
-  { href: "/pro/encounter",   icon: Activity,        label: "診療流程",   labelEn: "Encounter" },
-  { href: "/pro/exam",        icon: Microscope,      label: "檢驗工作台", labelEn: "Exam Workbench" },
-  { href: "/pro/dashboard",   icon: LayoutDashboard, label: "總覽",       labelEn: "Dashboard" },
-  { href: "/pro/patients",    icon: Users,           label: "病患管理",   labelEn: "Patients" },
-  { href: "/pro/references",  icon: BookMarked,      label: "參考資料",   labelEn: "References" },
-  { href: "/pro/drugs",       icon: Pill,            label: "藥物交互",   labelEn: "Drug Check" },
-  { href: "/pro/notes",       icon: FileText,        label: "SOAP 筆記",  labelEn: "SOAP Notes" },
+// Items shown based on role (doctor = default; nurse/pharmacist get role-specific subsets)
+const DOCTOR_NAV = [
+  { href: "/pro/dashboard",   icon: LayoutDashboard, label: "總覽" },
+  { href: "/pro/encounter",   icon: Activity,        label: "診療流程" },
+  { href: "/pro/patients",    icon: Users,           label: "病患管理" },
+  { href: "/pro/exam",        icon: Microscope,      label: "檢驗工作台" },
+  { href: "/pro/notes",       icon: FileText,        label: "SOAP 筆記" },
+  { href: "/pro/drugs",       icon: Pill,            label: "藥物交互" },
+  { href: "/pro/references",  icon: BookMarked,      label: "參考資料" },
+];
+const NURSE_NAV = [
+  { href: "/pro/dashboard",   icon: LayoutDashboard, label: "總覽" },
+  { href: "/pro/nursing",     icon: HeartPulse,      label: "護理工作台" },
+  { href: "/pro/patients",    icon: Users,           label: "病患列表" },
+  { href: "/pro/references",  icon: BookMarked,      label: "參考資料" },
+];
+const PHARMACIST_NAV = [
+  { href: "/pro/dashboard",   icon: LayoutDashboard, label: "總覽" },
+  { href: "/pro/pharmacy",    icon: FlaskConical,    label: "藥師工作台" },
+  { href: "/pro/drugs",       icon: Pill,            label: "交互作用檢查" },
+  { href: "/pro/references",  icon: BookMarked,      label: "參考資料" },
 ];
 
 const ADMIN_NAV = [
@@ -78,6 +91,9 @@ export default function ProSidebar() {
 
   const isActive = (href: string) => pathname.startsWith(href);
 
+  const roleLabel = isNurse ? "護理師工作台" : isPharmacist ? "藥師工作台" : "醫師臨床決策系統";
+  const mainNav = isNurse ? NURSE_NAV : isPharmacist ? PHARMACIST_NAV : DOCTOR_NAV;
+
   return (
     <aside className="pro-sidebar">
       {/* Logo */}
@@ -96,19 +112,19 @@ export default function ProSidebar() {
                 ClinCalc Pro
               </div>
               <div style={{ fontSize: 10, color: "var(--pro-text-muted)" }}>
-                醫師臨床決策系統
+                {roleLabel}
               </div>
             </div>
           </div>
         </Link>
       </div>
 
-      {/* Main nav */}
+      {/* Main nav — role-filtered */}
       <nav style={{ flex: 1, padding: "12px 0" }}>
         <div style={{ padding: "0 8px 4px 16px", fontSize: 10, color: "var(--pro-text-muted)", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
           主要功能
         </div>
-        {MAIN_NAV.map(({ href, icon: Icon, label }) => (
+        {mainNav.map(({ href, icon: Icon, label }) => (
           <Link key={href} href={href} className={`pro-nav-item${isActive(href) ? " active" : ""}`}>
             <Icon size={15} />
             <span>{label}</span>
@@ -116,7 +132,8 @@ export default function ProSidebar() {
           </Link>
         ))}
 
-        {showAppointments && (
+        {/* 掛號管理：醫師與護理師均可見 */}
+        {showAppointments && !isPharmacist && (
           <Link href="/pro/appointments" className={`pro-nav-item${isActive("/pro/appointments") ? " active" : ""}`}>
             <CalendarDays size={15} />
             <span>掛號管理</span>
@@ -124,42 +141,7 @@ export default function ProSidebar() {
           </Link>
         )}
 
-        {isPharmacist && (
-          <>
-            <div style={{ padding: "16px 8px 4px 16px", fontSize: 10, color: "#f59e0b", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              藥師功能
-            </div>
-            <Link href="/pro/pharmacy" className={`pro-nav-item${isActive("/pro/pharmacy") ? " active" : ""}`}>
-              <FlaskConical size={15} />
-              <span>藥師工作台</span>
-              {isActive("/pro/pharmacy") && <ChevronRight size={12} style={{ marginLeft: "auto", opacity: 0.6 }} />}
-            </Link>
-            <Link href="/pro/drugs" className={`pro-nav-item${isActive("/pro/drugs") ? " active" : ""}`}>
-              <Pill size={15} />
-              <span>交互作用檢查</span>
-              {isActive("/pro/drugs") && <ChevronRight size={12} style={{ marginLeft: "auto", opacity: 0.6 }} />}
-            </Link>
-          </>
-        )}
-
-        {isNurse && (
-          <>
-            <div style={{ padding: "16px 8px 4px 16px", fontSize: 10, color: "#ec4899", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              護理功能
-            </div>
-            <Link href="/pro/nursing" className={`pro-nav-item${isActive("/pro/nursing") ? " active" : ""}`}>
-              <HeartPulse size={15} />
-              <span>護理師工作台</span>
-              {isActive("/pro/nursing") && <ChevronRight size={12} style={{ marginLeft: "auto", opacity: 0.6 }} />}
-            </Link>
-            <Link href="/pro/patients" className={`pro-nav-item${isActive("/pro/patients") ? " active" : ""}`}>
-              <Users size={15} />
-              <span>病患列表</span>
-              {isActive("/pro/patients") && <ChevronRight size={12} style={{ marginLeft: "auto", opacity: 0.6 }} />}
-            </Link>
-          </>
-        )}
-
+        {/* Admin always sees admin section */}
         {isAdmin && (
           <>
             <div style={{ padding: "16px 8px 4px 16px", fontSize: 10, color: "var(--pro-text-muted)", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>

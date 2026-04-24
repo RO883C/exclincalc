@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronRight, ChevronLeft, AlertTriangle, CheckCircle,
   Plus, X, Save, Search, UserPlus, RefreshCw, Printer,
@@ -45,6 +46,7 @@ type StepId = typeof STEPS[number]["id"];
 // ── Main Component ────────────────────────────────────────────
 
 export default function EncounterPage() {
+  const router = useRouter();
   const [step, setStep] = useState<StepId>("complaint");
   const [knownPatients, setKnownPatients] = useState<PatientRecord[]>([]);
   const [patient, setPatient] = useState<PatientInfo>(EMPTY_PATIENT);
@@ -515,6 +517,18 @@ export default function EncounterPage() {
                 <Save size={13} />
                 {saved ? "已儲存" : saving ? "儲存中..." : saveError ? "儲存失敗" : "儲存"}
               </button>
+              {saved && (
+                <button
+                  onClick={() => router.push("/pro/appointments")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5, padding: "5px 12px",
+                    borderRadius: 6, border: "1px solid #22c55e", cursor: "pointer", fontSize: 12,
+                    background: "rgba(34,197,94,0.1)", color: "#22c55e",
+                  }}
+                >
+                  回到候診 →
+                </button>
+              )}
             </div>
             {saveError && (
               <div style={{ padding: "4px 20px", fontSize: 11, color: "#ef4444", background: "rgba(239,68,68,0.08)" }}>
