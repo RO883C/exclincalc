@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileText, ClipboardList, Plus, ArrowRight, AlertTriangle } from "lucide-react";
+import { Users, FileText, ClipboardList, Plus, ArrowRight, AlertTriangle, CalendarDays } from "lucide-react";
 import ProStatCard from "@/components/pro/ProStatCard";
 import { createClient } from "@/lib/supabase";
 
@@ -10,12 +10,13 @@ interface Stats {
   totalPatients: number;
   totalRecords: number;
   totalNotes: number;
+  waitingCount: number;
   recentPatients: Array<{ id: string; full_name: string; updated_at: string; sex: string | null }>;
 }
 
 export default function ProDashboard() {
   const [stats, setStats] = useState<Stats>({
-    totalPatients: 0, totalRecords: 0, totalNotes: 0, recentPatients: [],
+    totalPatients: 0, totalRecords: 0, totalNotes: 0, waitingCount: 0, recentPatients: [],
   });
   const [doctorName, setDoctorName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -26,17 +27,20 @@ export default function ProDashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const today = new Date().toISOString().split("T")[0];
       const [
         { data: profile },
         { count: pCount },
         { count: rCount },
         { count: nCount },
+        { count: wCount },
         { data: recentPts },
       ] = await Promise.all([
         supabase.from("profiles").select("name").eq("id", user.id).single(),
         supabase.from("doctor_patients").select("*", { count: "exact", head: true }).eq("doctor_id", user.id),
         supabase.from("clinical_records").select("*", { count: "exact", head: true }).eq("doctor_id", user.id),
         supabase.from("soap_notes").select("*", { count: "exact", head: true }).eq("doctor_id", user.id),
+        supabase.from("appointments").select("*", { count: "exact", head: true }).eq("doctor_id", user.id).eq("visit_date", today).in("status", ["waiting", "in_progress"]),
         supabase.from("doctor_patients").select("id, full_name, updated_at, sex").eq("doctor_id", user.id).order("updated_at", { ascending: false }).limit(5),
       ]);
 
@@ -45,6 +49,7 @@ export default function ProDashboard() {
         totalPatients: pCount || 0,
         totalRecords: rCount || 0,
         totalNotes: nCount || 0,
+        waitingCount: wCount || 0,
         recentPatients: recentPts || [],
       });
       setLoading(false);
@@ -75,10 +80,13 @@ export default function ProDashboard() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 28 }}>
-        <ProStatCard icon={Users}       value={loading ? "—" : stats.totalPatients} label="管理病患數" color="blue" />
-        <ProStatCard icon={ClipboardList} value={loading ? "—" : stats.totalRecords} label="臨床記錄數" color="green" />
-        <ProStatCard icon={FileText}    value={loading ? "—" : stats.totalNotes}   label="SOAP 筆記" color="yellow" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 28 }}>
+        <ProStatCard icon={Users}         value={loading ? "—" : stats.totalPatients} label="管理病患數" color="blue" />
+        <ProStatCard icon={ClipboardList} value={loading ? "—" : stats.totalRecords}  label="臨床記錄數" color="green" />
+        <ProStatCard icon={FileText}      value={loading ? "—" : stats.totalNotes}    label="SOAP 筆記" color="yellow" />
+        <Link href="/pro/appointments" style={{ textDecoration: "none" }}>
+          <ProStatCard icon={CalendarDays} value={loading ? "—" : stats.waitingCount} label="今日候診中" color="green" />
+        </Link>
       </div>
 
       {/* Quick actions */}
@@ -87,10 +95,10 @@ export default function ProDashboard() {
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--pro-text)", marginBottom: 14 }}>快速操作</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
+              { href: "/pro/appointments",  label: "掛號管理",     icon: CalendarDays },
+              { href: "/pro/encounter",     label: "開始看診",     icon: ClipboardList },
               { href: "/pro/patients/new",  label: "新增病患",     icon: Plus },
-              { href: "/pro/analysis",      label: "臨床分析",     icon: ClipboardList },
               { href: "/pro/drugs",         label: "藥物交互檢查", icon: AlertTriangle },
-              { href: "/pro/notes/new",     label: "新增 SOAP 筆記", icon: FileText },
             ].map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href} style={{
                 display: "flex", alignItems: "center", gap: 10,
