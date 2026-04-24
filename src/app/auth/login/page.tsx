@@ -111,11 +111,18 @@ function LoginForm() {
         </button>
       </form>
 
-      <div style={{ borderTop: "1px solid #1e3a5f", marginTop: 20, paddingTop: 16, textAlign: "center" }}>
-        <span style={{ fontSize: 13, color: "#94a3b8" }}>尚未有帳號？ </span>
-        <Link href="/auth/register" style={{ fontSize: 13, color: "#3b82f6", textDecoration: "none", fontWeight: 600 }}>
-          申請帳號
-        </Link>
+      <div style={{ borderTop: "1px solid #1e3a5f", marginTop: 20, paddingTop: 16 }}>
+        <div style={{ textAlign: "center", marginBottom: 10 }}>
+          <Link href="/auth/forgot-password" style={{ fontSize: 12, color: "#64748b", textDecoration: "none" }}>
+            忘記密碼？
+          </Link>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <span style={{ fontSize: 13, color: "#94a3b8" }}>尚未有帳號？ </span>
+          <Link href="/auth/register" style={{ fontSize: 13, color: "#3b82f6", textDecoration: "none", fontWeight: 600 }}>
+            申請帳號
+          </Link>
+        </div>
       </div>
     </div>
   );

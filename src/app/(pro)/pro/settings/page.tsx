@@ -13,6 +13,7 @@ interface AppSettings {
   showPatientAge: boolean;
   defaultEncounterStep: string;
   enableNotifications: boolean;
+  showAppointments: boolean;   // 掛號系統開關（論文展示用，預設開啟）
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showPatientAge: true,
   defaultEncounterStep: "complaint",
   enableNotifications: true,
+  showAppointments: true,
 };
 
 const SETTINGS_KEY = "pro_app_settings";
@@ -252,6 +254,36 @@ export default function SettingsPage() {
             <div style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>儲存成功、藥物交互警示等提示</div>
           </div>
         </label>
+      </div>
+
+      {/* Section: Modules */}
+      <div className="pro-card" style={{ padding: 20, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--pro-text)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+          <Stethoscope size={14} color="#f59e0b" /> 功能模組
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <div
+              onClick={() => update("showAppointments", !settings.showAppointments)}
+              style={{
+                width: 40, height: 22, borderRadius: 11, position: "relative", cursor: "pointer",
+                background: settings.showAppointments ? "var(--pro-accent)" : "var(--pro-border)",
+                transition: "background 0.2s", flexShrink: 0,
+              }}
+            >
+              <div style={{
+                position: "absolute", top: 3, left: settings.showAppointments ? 21 : 3,
+                width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s",
+              }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pro-text)" }}>掛號管理模組</div>
+              <div style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>
+                顯示掛號頁面與候診隊列（關閉後側邊欄不顯示此頁）
+              </div>
+            </div>
+          </label>
+        </div>
       </div>
 
       {/* Account section link */}

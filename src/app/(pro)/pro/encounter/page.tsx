@@ -133,10 +133,36 @@ export default function EncounterPage() {
     ? knownPatients.filter((p) => p.full_name.includes(nameQuery)).slice(0, 6)
     : [];
 
-  const selectKnownPatient = (p: PatientRecord) => {
+  const selectKnownPatient = async (p: PatientRecord) => {
     const age = p.date_of_birth
       ? String(new Date().getFullYear() - new Date(p.date_of_birth).getFullYear())
       : "";
+    // 嘗試載入今日分診生命徵象
+    const today = new Date().toISOString().split("T")[0];
+    const supabase2 = createClient();
+    const { data: tvData } = await supabase2
+      .from("triage_vitals")
+      .select("*")
+      .eq("patient_id", p.id)
+      .gte("created_at", today)
+      .is("used_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (tvData) {
+      setVitals({
+        sbp: tvData.bp_sys ? String(tvData.bp_sys) : "",
+        dbp: tvData.bp_dia ? String(tvData.bp_dia) : "",
+        hr: tvData.hr ? String(tvData.hr) : "",
+        rr: tvData.rr ? String(tvData.rr) : "",
+        temp: tvData.temp ? String(tvData.temp) : "",
+        spo2: tvData.spo2 ? String(tvData.spo2) : "",
+        weight: tvData.weight ? String(tvData.weight) : "",
+        height: tvData.height ? String(tvData.height) : "",
+      });
+      // 標記已被調用（fire-and-forget 可接受，失敗不影響流程）
+      supabase2.from("triage_vitals").update({ used_at: new Date().toISOString() }).eq("id", tvData.id).catch(console.error);
+    }
     setPatient({ id: p.id, name: p.full_name, sex: (p.sex as "M" | "F") || "", age });
     setNameQuery(p.full_name);
     setShowSuggestions(false);
@@ -233,6 +259,15 @@ export default function EncounterPage() {
     if (selectedReferrals.length) planParts.push(`轉介：${selectedReferrals.join("、")}`);
     if (planNotes) planParts.push(planNotes);
 
+    // 結構化處方資料（供藥師調配用）
+    const structuredRx = selectedRx.flatMap(label => {
+      for (const [, items] of Object.entries(PRESCRIPTION_TEMPLATES)) {
+        const found = items.find(rx => `${rx.drug} ${rx.dose} ${rx.frequency}` === label);
+        if (found) return [found];
+      }
+      return [{ drug: label, generic: "", dose: "", frequency: "", route: "PO" }];
+    });
+
     const { error: saveErr } = await supabase.from("clinical_records").insert({
       patient_id: patientId,
       doctor_id: user.id,
@@ -242,6 +277,7 @@ export default function EncounterPage() {
       assessment,
       plan: planParts.join("\n") || null,
       icd10_codes: icd10_codes.length ? icd10_codes : [],
+      prescriptions: structuredRx.length ? structuredRx : [],
     });
 
     if (saveErr) { setSaveError(`儲存失敗：${saveErr.message}`); setSaving(false); return; }

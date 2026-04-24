@@ -22,6 +22,14 @@ interface Medication {
 
 const COLUMNS: ColumnDef<Medication>[] = [
   {
+    key: "id", label: "No.", width: 44,
+    render: (_row, index) => (
+      <span style={{ fontSize: 11, color: "var(--pro-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+        {index + 1}
+      </span>
+    ),
+  },
+  {
     key: "prescription_required", label: "類型",
     render: (row) => (
       <span style={{

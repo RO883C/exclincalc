@@ -7,7 +7,7 @@ export interface ColumnDef<T> {
   key: keyof T | string;
   label: string;
   width?: number;
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T, index: number) => React.ReactNode;
   editable?: boolean;
   type?: "text" | "number" | "boolean" | "textarea";
   /** Only shown in edit/detail modal, not in the table */
@@ -83,15 +83,16 @@ export default function AdminDataTable<T extends object>({
       })()
     : [{ label: "", rows: filtered }];
 
-  const renderRows = (rows: T[]) =>
-    rows.map(row => {
+  const renderRows = (rows: T[], startIndex = 0) =>
+    rows.map((row, i) => {
       const id = String(row[idKey]);
+      const globalIndex = startIndex + i;
       return (
         <tr key={id} style={{ cursor: "pointer" }} onClick={() => setEditRow({ ...row })}>
           {tableCols.map(col => (
             <td key={String(col.key)} onClick={col.render ? e => e.stopPropagation() : undefined}>
               {col.render
-                ? col.render(row)
+                ? col.render(row, globalIndex)
                 : <span style={{ fontSize: 12 }}>{String(row[col.key as keyof T] ?? "—")}</span>
               }
             </td>
@@ -144,7 +145,9 @@ export default function AdminDataTable<T extends object>({
         <div style={{ textAlign: "center", padding: 32, color: "var(--pro-text-muted)" }}>無資料</div>
       )}
 
-      {!loading && groups.map(({ label, rows }) => (
+      {!loading && groups.map(({ label, rows }, gi) => {
+        const startIndex = groups.slice(0, gi).reduce((sum, g) => sum + g.rows.length, 0);
+        return (
         <div key={label || "_"} style={{ marginBottom: groupBy ? 12 : 0 }}>
           {/* Group header */}
           {groupBy && label && (
@@ -189,13 +192,14 @@ export default function AdminDataTable<T extends object>({
                   </thead>
                 )}
                 <tbody>
-                  {renderRows(rows)}
+                  {renderRows(rows, startIndex)}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
 
       <div style={{ marginTop: 8, fontSize: 12, color: "var(--pro-text-muted)", textAlign: "right" }}>
         共 {filtered.length} 筆{search ? `（篩選自 ${data.length} 筆）` : ""}

@@ -18,10 +18,14 @@ interface Patient {
 interface VitalsForm {
   bp_sys: string; bp_dia: string;
   hr: string; rr: string; temp: string; spo2: string;
+  weight: string; height: string; pain_scale: string;
   note: string;
 }
 
-const EMPTY_VITALS: VitalsForm = { bp_sys: "", bp_dia: "", hr: "", rr: "", temp: "", spo2: "", note: "" };
+const EMPTY_VITALS: VitalsForm = {
+  bp_sys: "", bp_dia: "", hr: "", rr: "", temp: "", spo2: "",
+  weight: "", height: "", pain_scale: "", note: "",
+};
 
 function calcAge(dob: string | null): string {
   if (!dob) return "—";
@@ -72,10 +76,32 @@ export default function NursingPage() {
   const setV = (id: string, key: keyof VitalsForm, val: string) =>
     setVitals(prev => ({ ...prev, [id]: { ...(prev[id] ?? EMPTY_VITALS), [key]: val } }));
 
-  const handleSave = (id: string) => {
-    // Vitals are recorded locally for this session; to persist, integrate with clinical_records
-    setSaved(prev => ({ ...prev, [id]: true }));
-    setTimeout(() => setSaved(prev => ({ ...prev, [id]: false })), 2000);
+  const handleSave = async (patientId: string) => {
+    const v = getVitals(patientId);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const num = (s: string) => s ? parseFloat(s) : null;
+    const int = (s: string) => s ? parseInt(s) : null;
+
+    await supabase.from("triage_vitals").insert({
+      patient_id: patientId,
+      nurse_id: user.id,
+      bp_sys: int(v.bp_sys),
+      bp_dia: int(v.bp_dia),
+      hr: int(v.hr),
+      rr: int(v.rr),
+      temp: num(v.temp),
+      spo2: int(v.spo2),
+      weight: num(v.weight),
+      height: num(v.height),
+      pain_scale: int(v.pain_scale),
+      note: v.note || null,
+    });
+
+    setSaved(prev => ({ ...prev, [patientId]: true }));
+    setTimeout(() => setSaved(prev => ({ ...prev, [patientId]: false })), 2500);
   };
 
   return (
@@ -191,6 +217,9 @@ export default function NursingPage() {
                       { key: "rr" as const, label: "呼吸 (次/分)", placeholder: "16" },
                       { key: "temp" as const, label: "體溫 (°C)", placeholder: "36.8" },
                       { key: "spo2" as const, label: "SpO₂ (%)", placeholder: "98" },
+                      { key: "weight" as const, label: "體重 (kg)", placeholder: "65" },
+                      { key: "height" as const, label: "身高 (cm)", placeholder: "170" },
+                      { key: "pain_scale" as const, label: "疼痛指數 (0–10)", placeholder: "0" },
                     ].map(({ key, label, placeholder }) => (
                       <div key={key}>
                         <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--pro-text-muted)", marginBottom: 3 }}>{label}</label>

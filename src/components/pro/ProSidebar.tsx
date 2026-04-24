@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Pill, FileText,
   Database, BookOpen, ClipboardList, BarChart3, LogOut,
   Stethoscope, ChevronRight, UserCog, Microscope, Activity, BookMarked, Settings,
-  FlaskConical, HeartPulse,
+  FlaskConical, HeartPulse, CalendarDays, ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
@@ -42,6 +42,7 @@ export default function ProSidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPharmacist, setIsPharmacist] = useState(false);
   const [isNurse, setIsNurse] = useState(false);
+  const [showAppointments, setShowAppointments] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
@@ -58,6 +59,14 @@ export default function ProSidebar() {
         setIsPharmacist(p.pro_role === "pharmacist");
         setIsNurse(p.pro_role === "nurse");
       }
+      // Read appointments toggle from settings
+      try {
+        const raw = localStorage.getItem("pro_app_settings");
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s.showAppointments === false) setShowAppointments(false);
+        }
+      } catch { /* use default */ }
     });
   }, []);
 
@@ -106,6 +115,14 @@ export default function ProSidebar() {
             {isActive(href) && <ChevronRight size={12} style={{ marginLeft: "auto", opacity: 0.6 }} />}
           </Link>
         ))}
+
+        {showAppointments && (
+          <Link href="/pro/appointments" className={`pro-nav-item${isActive("/pro/appointments") ? " active" : ""}`}>
+            <CalendarDays size={15} />
+            <span>掛號管理</span>
+            {isActive("/pro/appointments") && <ChevronRight size={12} style={{ marginLeft: "auto", opacity: 0.6 }} />}
+          </Link>
+        )}
 
         {isPharmacist && (
           <>
@@ -193,6 +210,14 @@ export default function ProSidebar() {
             textDecoration: "none", background: "transparent", transition: "all 0.15s",
           }}>
             <UserCog size={13} />
+          </Link>
+          <Link href="/pro/security" title="帳號安全" style={{
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+            gap: 4, padding: "6px", borderRadius: 6, fontSize: 12,
+            color: "var(--pro-text-muted)", border: "1px solid var(--pro-border)",
+            textDecoration: "none", background: "transparent", transition: "all 0.15s",
+          }}>
+            <ShieldCheck size={13} />
           </Link>
           <Link href="/pro/settings" title="系統設定" style={{
             flex: 1, display: "flex", alignItems: "center", justifyContent: "center",

@@ -1,228 +1,416 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FlaskConical, Search, AlertTriangle, BookOpen, ExternalLink, Pill, ShieldAlert, CheckCircle } from "lucide-react";
+import {
+  FlaskConical, Search, AlertTriangle, BookOpen, Pill,
+  ShieldAlert, CheckCircle, Package, RefreshCw, Clock
+} from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import Link from "next/link";
 
 interface Medication {
+  id: string; name_zh: string; name_en: string; generic_name: string | null;
+  category: string; uses_zh: string; side_effects_zh: string | null;
+  common_dosage: string | null; warnings_zh: string | null;
+  interactions: string[] | null; prescription_required: boolean; source: string | null;
+}
+
+interface PrescriptionRecord {
   id: string;
-  name_zh: string;
-  name_en: string;
-  generic_name: string | null;
-  category: string;
-  uses_zh: string;
-  side_effects_zh: string | null;
-  common_dosage: string | null;
-  warnings_zh: string | null;
-  interactions: string[] | null;
-  prescription_required: boolean;
-  source: string | null;
+  visit_date: string;
+  chief_complaint: string | null;
+  assessment: string | null;
+  prescriptions: PrescriptionItem[];
+  dispensed_at: string | null;
+  patient: { full_name: string } | null;
+  doctor: { full_name: string } | null;
+}
+
+interface PrescriptionItem {
+  drug: string; generic: string; dose: string;
+  frequency: string; route: string; note?: string; nhiCode?: string;
+  dispensed?: boolean;
 }
 
 export default function PharmacyPage() {
+  const [tab, setTab] = useState<"dispense" | "reference">("dispense");
   const [meds, setMeds] = useState<Medication[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [medsLoading, setMedsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Medication | null>(null);
   const [filterRx, setFilterRx] = useState<"all" | "rx" | "otc">("all");
 
+  // Dispensing state
+  const [pendingRx, setPendingRx] = useState<PrescriptionRecord[]>([]);
+  const [dispensedRx, setDispensedRx] = useState<PrescriptionRecord[]>([]);
+  const [rxLoading, setRxLoading] = useState(true);
+  const [dispensing, setDispensing] = useState<string | null>(null);
+  const [showDispensed, setShowDispensed] = useState(false);
+
+  const supabase = createClient();
+
+  const loadMeds = async () => {
+    setMedsLoading(true);
+    const { data } = await supabase.from("medications").select("*").order("name_zh");
+    setMeds((data as Medication[]) || []);
+    setMedsLoading(false);
+  };
+
+  const loadPrescriptions = async () => {
+    setRxLoading(true);
+    const today = new Date().toISOString().split("T")[0];
+    // Query today's clinical records with non-empty prescriptions
+    const { data } = await supabase
+      .from("clinical_records")
+      .select("id, visit_date, chief_complaint, assessment, prescriptions, dispensed_at, patient:patient_id(full_name)")
+      .eq("visit_date", today)
+      .not("prescriptions", "eq", "[]")
+      .not("prescriptions", "is", null)
+      .order("created_at", { ascending: false });
+
+    if (data) {
+      const records = data as PrescriptionRecord[];
+      setPendingRx(records.filter(r => !r.dispensed_at));
+      setDispensedRx(records.filter(r => !!r.dispensed_at));
+    }
+    setRxLoading(false);
+  };
+
   useEffect(() => {
-    const supabase = createClient();
-    supabase.from("medications").select("*").order("name_zh")
-      .then(({ data }) => { setMeds((data as Medication[]) || []); setLoading(false); });
+    loadPrescriptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (tab === "reference" && meds.length === 0) loadMeds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const dispense = async (recordId: string) => {
+    setDispensing(recordId);
+    await supabase.from("clinical_records").update({
+      dispensed_at: new Date().toISOString(),
+    }).eq("id", recordId);
+    await loadPrescriptions();
+    setDispensing(null);
+  };
 
   const filtered = meds.filter(m => {
     const matchRx = filterRx === "all" || (filterRx === "rx" ? m.prescription_required : !m.prescription_required);
     const q = search.toLowerCase();
-    const matchSearch = !q ||
-      m.name_zh.toLowerCase().includes(q) ||
-      m.name_en.toLowerCase().includes(q) ||
-      (m.generic_name?.toLowerCase().includes(q) ?? false) ||
-      m.category.toLowerCase().includes(q);
-    return matchRx && matchSearch;
+    return matchRx && (!q ||
+      m.name_zh.toLowerCase().includes(q) || m.name_en.toLowerCase().includes(q) ||
+      (m.generic_name?.toLowerCase().includes(q) ?? false) || m.category.toLowerCase().includes(q));
   });
-
-  const rxCount = meds.filter(m => m.prescription_required).length;
-  const otcCount = meds.filter(m => !m.prescription_required).length;
 
   return (
     <div style={{ maxWidth: 1100 }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--pro-text)", display: "flex", alignItems: "center", gap: 8 }}>
           <FlaskConical size={20} color="#f59e0b" /> 藥師工作台
         </h1>
-        <p style={{ fontSize: 13, color: "var(--pro-text-muted)", marginTop: 4 }}>
-          藥物查詢、仿單資訊、交互作用快速核對
+        <p style={{ fontSize: 12, color: "var(--pro-text-muted)", marginTop: 3 }}>
+          處方調配 · 藥物查詢 · 交互作用核對
         </p>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+      {/* Tabs */}
+      <div style={{ display: "flex", borderBottom: "2px solid var(--pro-border)", marginBottom: 20, gap: 0 }}>
         {[
-          { label: "藥物總數", value: meds.length, color: "#6366f1", icon: <Pill size={16} /> },
-          { label: "處方藥（Rx）", value: rxCount, color: "#ef4444", icon: <ShieldAlert size={16} /> },
-          { label: "成藥（OTC）", value: otcCount, color: "#22c55e", icon: <CheckCircle size={16} /> },
-        ].map(({ label, value, color, icon }) => (
-          <div key={label} className="pro-card" style={{ padding: "12px 18px", display: "flex", alignItems: "center", gap: 12, flex: "1 1 160px" }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center", color }}>
-              {icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--pro-text)" }}>{value}</div>
-              <div style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>{label}</div>
-            </div>
-          </div>
+          { key: "dispense", label: "待調配", badge: pendingRx.length },
+          { key: "reference", label: "藥物查詢" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key as typeof tab)} style={{
+            padding: "10px 20px", background: "none", border: "none", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+            borderBottom: tab === t.key ? "2px solid var(--pro-accent)" : "2px solid transparent",
+            color: tab === t.key ? "var(--pro-accent)" : "var(--pro-text-muted)",
+            marginBottom: -2,
+          }}>
+            {t.label}
+            {t.badge != null && t.badge > 0 && (
+              <span style={{
+                fontSize: 10, padding: "1px 7px", borderRadius: 20,
+                background: "var(--pro-accent)", color: "#fff",
+              }}>{t.badge}</span>
+            )}
+          </button>
         ))}
-        <Link href="/pro/drugs" className="pro-card" style={{
-          padding: "12px 18px", display: "flex", alignItems: "center", gap: 12,
-          flex: "1 1 160px", textDecoration: "none", cursor: "pointer",
-          border: "1px dashed var(--pro-border)",
-        }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(245,158,11,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
-            <AlertTriangle size={16} />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--pro-text)" }}>藥物交互作用</div>
-            <div style={{ fontSize: 11, color: "var(--pro-accent)" }}>前往交互作用檢查 →</div>
-          </div>
-        </Link>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 16 }}>
-        {/* Left: Search + List */}
+      {/* ─── TAB: Dispensing ─── */}
+      {tab === "dispense" && (
         <div>
-          {/* Toolbar */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
-              <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--pro-text-muted)", pointerEvents: "none" }} />
-              <input
-                className="pro-input"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="搜尋藥名（中文 / 英文 / 學名 / 分類）..."
-                style={{ paddingLeft: 32, width: "100%" }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 4, background: "var(--pro-bg)", border: "1px solid var(--pro-border)", borderRadius: 8, padding: 3 }}>
-              {(["all", "rx", "otc"] as const).map(f => (
-                <button key={f} onClick={() => setFilterRx(f)} style={{
-                  padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                  background: filterRx === f ? "var(--pro-accent)" : "transparent",
-                  color: filterRx === f ? "#fff" : "var(--pro-text-muted)",
-                }}>
-                  {f === "all" ? "全部" : f === "rx" ? "Rx" : "OTC"}
-                </button>
-              ))}
-            </div>
-            <span style={{ fontSize: 12, color: "var(--pro-text-muted)", alignSelf: "center" }}>{filtered.length} 筆</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: "var(--pro-text-muted)" }}>
+              今日需調配處方 — {new Date().toLocaleDateString("zh-TW")}
+            </p>
+            <button onClick={loadPrescriptions} style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+              borderRadius: 7, border: "1px solid var(--pro-border)",
+              background: "var(--pro-surface)", color: "var(--pro-text-muted)",
+              cursor: "pointer", fontSize: 12,
+            }}>
+              <RefreshCw size={12} /> 刷新
+            </button>
           </div>
 
-          {/* Drug list */}
-          <div style={{ borderRadius: 10, border: "1px solid var(--pro-border)", overflow: "hidden" }}>
-            {loading && <div style={{ padding: 32, textAlign: "center", color: "var(--pro-text-muted)" }}>載入中...</div>}
-            {!loading && filtered.length === 0 && <div style={{ padding: 32, textAlign: "center", color: "var(--pro-text-muted)" }}>無符合藥物</div>}
-            {filtered.map((m, i) => (
-              <div
-                key={m.id}
-                onClick={() => setSelected(prev => prev?.id === m.id ? null : m)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
-                  borderBottom: i < filtered.length - 1 ? "1px solid var(--pro-border)" : "none",
-                  background: selected?.id === m.id ? "var(--pro-accent-dim)" : "var(--pro-sidebar)",
-                  cursor: "pointer", transition: "background 0.1s",
-                }}
-                onMouseEnter={e => { if (selected?.id !== m.id) (e.currentTarget as HTMLElement).style.background = "var(--pro-bg)"; }}
-                onMouseLeave={e => { if (selected?.id !== m.id) (e.currentTarget as HTMLElement).style.background = "var(--pro-sidebar)"; }}
-              >
-                <span style={{
-                  padding: "2px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0,
-                  background: m.prescription_required ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
-                  color: m.prescription_required ? "#ef4444" : "#22c55e",
+          {rxLoading ? (
+            <p style={{ color: "var(--pro-text-muted)", fontSize: 13, padding: "20px 0" }}>載入中…</p>
+          ) : pendingRx.length === 0 ? (
+            <div style={{
+              textAlign: "center", padding: "50px 0",
+              border: "1px dashed var(--pro-border)", borderRadius: 10,
+              color: "var(--pro-text-muted)",
+            }}>
+              <Package size={36} style={{ opacity: 0.3, marginBottom: 10 }} />
+              <p style={{ fontSize: 14, fontWeight: 600 }}>今日無待調配處方</p>
+              <p style={{ fontSize: 12, marginTop: 4 }}>醫師開立的處方會自動出現在此</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {pendingRx.map(record => (
+                <div key={record.id} style={{
+                  background: "var(--pro-surface)", border: "2px solid rgba(245,158,11,0.3)",
+                  borderRadius: 10, padding: 16,
                 }}>
-                  {m.prescription_required ? "Rx" : "OTC"}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pro-text)" }}>{m.name_zh}</div>
-                  <div style={{ fontSize: 11, color: "var(--pro-text-muted)", marginTop: 1 }}>
-                    {m.name_en}{m.generic_name ? ` · ${m.generic_name}` : ""}
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--pro-text)" }}>
+                          {record.patient?.full_name ?? "未知病患"}
+                        </span>
+                        <span style={{
+                          fontSize: 10, padding: "2px 8px", borderRadius: 10,
+                          background: "rgba(245,158,11,0.15)", color: "#f59e0b", fontWeight: 600,
+                        }}>
+                          待調配
+                        </span>
+                      </div>
+                      {record.chief_complaint && (
+                        <p style={{ fontSize: 12, color: "var(--pro-text-muted)", marginTop: 3 }}>
+                          主訴：{record.chief_complaint}
+                        </p>
+                      )}
+                      {record.assessment && (
+                        <p style={{ fontSize: 11, color: "var(--pro-text-muted)", marginTop: 2 }}>
+                          診斷：{record.assessment}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => dispense(record.id)}
+                      disabled={dispensing === record.id}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "8px 16px", borderRadius: 8, border: "none",
+                        background: dispensing === record.id ? "#4b5563" : "#22c55e",
+                        color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                        flexShrink: 0,
+                      }}>
+                      <CheckCircle size={14} />
+                      {dispensing === record.id ? "確認中…" : "完成調配"}
+                    </button>
+                  </div>
+
+                  {/* Prescription items */}
+                  <div style={{ background: "var(--pro-bg)", borderRadius: 7, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--pro-border)" }}>
+                          {["藥物名稱", "學名", "劑量", "頻次", "途徑", "備註"].map(h => (
+                            <th key={h} style={{
+                              padding: "7px 10px", textAlign: "left", fontWeight: 600,
+                              color: "var(--pro-text-muted)", fontSize: 11,
+                            }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(record.prescriptions as PrescriptionItem[]).map((rx, i) => (
+                          <tr key={i} style={{ borderBottom: i < record.prescriptions.length - 1 ? "1px solid var(--pro-border)" : "none" }}>
+                            <td style={{ padding: "8px 10px", fontWeight: 600, color: "var(--pro-text)" }}>{rx.drug}</td>
+                            <td style={{ padding: "8px 10px", color: "var(--pro-text-muted)" }}>{rx.generic}</td>
+                            <td style={{ padding: "8px 10px", color: "var(--pro-text)" }}>{rx.dose}</td>
+                            <td style={{ padding: "8px 10px", color: "var(--pro-text)" }}>{rx.frequency}</td>
+                            <td style={{ padding: "8px 10px", color: "var(--pro-text-muted)" }}>{rx.route}</td>
+                            <td style={{ padding: "8px 10px", color: "#f59e0b", fontSize: 11 }}>{rx.note ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: "var(--pro-text-muted)", flexShrink: 0 }}>{m.category}</div>
-                {m.interactions && m.interactions.length > 0 && (
-                  <span title={`${m.interactions.length} 個交互作用`}>
-                    <AlertTriangle size={12} color="#f59e0b" />
-                  </span>
-                )}
+              ))}
+            </div>
+          )}
+
+          {/* Already dispensed section */}
+          {dispensedRx.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <button
+                onClick={() => setShowDispensed(!showDispensed)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
+                  cursor: "pointer", fontSize: 12, color: "var(--pro-text-muted)", padding: 0, marginBottom: 10,
+                }}>
+                <Clock size={13} /> 今日已調配 ({dispensedRx.length}) {showDispensed ? "▲" : "▼"}
+              </button>
+              {showDispensed && dispensedRx.map(record => (
+                <div key={record.id} style={{
+                  background: "var(--pro-surface)", border: "1px solid var(--pro-border)",
+                  borderRadius: 10, padding: 14, marginBottom: 8, opacity: 0.8,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <CheckCircle size={14} color="#22c55e" />
+                    <span style={{ fontWeight: 600, fontSize: 13, color: "var(--pro-text)" }}>
+                      {record.patient?.full_name ?? "—"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>
+                      已於 {record.dispensed_at ? new Date(record.dispensed_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }) : "—"} 調配
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>
+                      共 {record.prescriptions.length} 項藥品
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── TAB: Drug Reference ─── */}
+      {tab === "reference" && (
+        <div>
+          {/* Stats */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+            {[
+              { label: "藥物總數", value: meds.length, color: "#6366f1", icon: <Pill size={15} /> },
+              { label: "處方藥（Rx）", value: meds.filter(m => m.prescription_required).length, color: "#ef4444", icon: <ShieldAlert size={15} /> },
+              { label: "成藥（OTC）", value: meds.filter(m => !m.prescription_required).length, color: "#22c55e", icon: <CheckCircle size={15} /> },
+            ].map(({ label, value, color, icon }) => (
+              <div key={label} className="pro-card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, flex: "1 1 140px" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center", color }}>{icon}</div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "var(--pro-text)" }}>{value}</div>
+                  <div style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>{label}</div>
+                </div>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Right: Detail panel */}
-        {selected && (
-          <div className="pro-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14, height: "fit-content", position: "sticky", top: 16 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+            <Link href="/pro/drugs" className="pro-card" style={{
+              padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, flex: "1 1 140px",
+              textDecoration: "none", border: "1px dashed var(--pro-border)",
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245,158,11,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
+                <AlertTriangle size={15} />
+              </div>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--pro-text)" }}>{selected.name_zh}</div>
-                <div style={{ fontSize: 12, color: "var(--pro-text-muted)", marginTop: 2 }}>{selected.name_en}{selected.generic_name ? ` (${selected.generic_name})` : ""}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--pro-text)" }}>交互作用</div>
+                <div style={{ fontSize: 11, color: "var(--pro-accent)" }}>前往檢查 →</div>
               </div>
-              <span style={{
-                padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 700, flexShrink: 0,
-                background: selected.prescription_required ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
-                color: selected.prescription_required ? "#ef4444" : "#22c55e",
-              }}>
-                {selected.prescription_required ? "處方藥 Rx" : "成藥 OTC"}
-              </span>
-            </div>
-
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 8, background: "rgba(99,102,241,0.12)", color: "#6366f1", fontWeight: 600 }}>{selected.category}</span>
-              {selected.source && (
-                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 8, background: "var(--pro-bg)", color: "var(--pro-text-muted)", border: "1px solid var(--pro-border)" }}>
-                  <BookOpen size={9} style={{ display: "inline", marginRight: 3 }} />{selected.source}
-                </span>
-              )}
-            </div>
-
-            {[
-              { label: "適應症", value: selected.uses_zh },
-              { label: "常見劑量", value: selected.common_dosage },
-              { label: "副作用", value: selected.side_effects_zh },
-              { label: "警告", value: selected.warnings_zh, danger: true },
-            ].map(({ label, value, danger }) => value ? (
-              <div key={label}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: danger ? "var(--pro-danger)" : "var(--pro-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 13, color: danger ? "var(--pro-text)" : "var(--pro-text)", lineHeight: 1.6 }}>{value}</div>
-              </div>
-            ) : null)}
-
-            {selected.interactions && selected.interactions.length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                  <AlertTriangle size={11} /> 藥物交互作用（{selected.interactions.length}）
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {selected.interactions.map(i => (
-                    <div key={i} style={{ fontSize: 12, color: "var(--pro-text)", padding: "4px 8px", borderRadius: 5, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
-                      {i}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <Link
-              href={`/pro/drugs?q=${encodeURIComponent(selected.name_en)}`}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 7, background: "rgba(245,158,11,0.1)", color: "#f59e0b", textDecoration: "none", fontSize: 13, fontWeight: 600, border: "1px solid rgba(245,158,11,0.2)", marginTop: 4 }}
-            >
-              <AlertTriangle size={13} /> 開啟交互作用檢查
             </Link>
           </div>
-        )}
-      </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 16 }}>
+            <div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+                  <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--pro-text-muted)", pointerEvents: "none" }} />
+                  <input className="pro-input" value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="搜尋藥名（中文 / 英文 / 學名 / 分類）..."
+                    style={{ paddingLeft: 32, width: "100%" }} />
+                </div>
+                <div style={{ display: "flex", gap: 4, background: "var(--pro-bg)", border: "1px solid var(--pro-border)", borderRadius: 8, padding: 3 }}>
+                  {(["all", "rx", "otc"] as const).map(f => (
+                    <button key={f} onClick={() => setFilterRx(f)} style={{
+                      padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                      background: filterRx === f ? "var(--pro-accent)" : "transparent",
+                      color: filterRx === f ? "#fff" : "var(--pro-text-muted)",
+                    }}>
+                      {f === "all" ? "全部" : f === "rx" ? "Rx" : "OTC"}
+                    </button>
+                  ))}
+                </div>
+                <span style={{ fontSize: 12, color: "var(--pro-text-muted)", alignSelf: "center" }}>{filtered.length} 筆</span>
+              </div>
+
+              <div style={{ borderRadius: 10, border: "1px solid var(--pro-border)", overflow: "hidden" }}>
+                {medsLoading && <div style={{ padding: 32, textAlign: "center", color: "var(--pro-text-muted)" }}>載入中...</div>}
+                {!medsLoading && filtered.length === 0 && <div style={{ padding: 32, textAlign: "center", color: "var(--pro-text-muted)" }}>無符合藥物</div>}
+                {filtered.map((m, i) => (
+                  <div key={m.id} onClick={() => setSelected(prev => prev?.id === m.id ? null : m)} style={{
+                    display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                    borderBottom: i < filtered.length - 1 ? "1px solid var(--pro-border)" : "none",
+                    background: selected?.id === m.id ? "var(--pro-accent-dim)" : "var(--pro-sidebar)",
+                    cursor: "pointer",
+                  }}>
+                    <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: 10, fontWeight: 700, flexShrink: 0,
+                      background: m.prescription_required ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
+                      color: m.prescription_required ? "#ef4444" : "#22c55e" }}>
+                      {m.prescription_required ? "Rx" : "OTC"}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pro-text)" }}>{m.name_zh}</div>
+                      <div style={{ fontSize: 11, color: "var(--pro-text-muted)", marginTop: 1 }}>
+                        {m.name_en}{m.generic_name ? ` · ${m.generic_name}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--pro-text-muted)", flexShrink: 0 }}>{m.category}</div>
+                    {m.interactions && m.interactions.length > 0 && <AlertTriangle size={12} color="#f59e0b" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {selected && (
+              <div className="pro-card" style={{ padding: 20, height: "fit-content", position: "sticky", top: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--pro-text)" }}>{selected.name_zh}</div>
+                    <div style={{ fontSize: 12, color: "var(--pro-text-muted)", marginTop: 2 }}>{selected.name_en}{selected.generic_name ? ` (${selected.generic_name})` : ""}</div>
+                  </div>
+                  <span style={{ padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 700, height: "fit-content",
+                    background: selected.prescription_required ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
+                    color: selected.prescription_required ? "#ef4444" : "#22c55e" }}>
+                    {selected.prescription_required ? "Rx" : "OTC"}
+                  </span>
+                </div>
+                {[
+                  { label: "適應症", value: selected.uses_zh },
+                  { label: "常見劑量", value: selected.common_dosage },
+                  { label: "副作用", value: selected.side_effects_zh },
+                  { label: "警告", value: selected.warnings_zh, danger: true },
+                ].map(({ label, value, danger }) => value ? (
+                  <div key={label} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: danger ? "var(--pro-danger)" : "var(--pro-text-muted)", marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 13, color: "var(--pro-text)", lineHeight: 1.6 }}>{value}</div>
+                  </div>
+                ) : null)}
+                {selected.interactions && selected.interactions.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                      <AlertTriangle size={11} /> 交互作用（{selected.interactions.length}）
+                    </div>
+                    {selected.interactions.map(i => (
+                      <div key={i} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 5, marginBottom: 3, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", color: "var(--pro-text)" }}>{i}</div>
+                    ))}
+                  </div>
+                )}
+                <Link href={`/pro/drugs?q=${encodeURIComponent(selected.name_en)}`} style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px",
+                  borderRadius: 7, background: "rgba(245,158,11,0.1)", color: "#f59e0b",
+                  textDecoration: "none", fontSize: 13, fontWeight: 600, marginTop: 10,
+                  border: "1px solid rgba(245,158,11,0.2)",
+                }}>
+                  <AlertTriangle size={13} /> 開啟交互作用檢查
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

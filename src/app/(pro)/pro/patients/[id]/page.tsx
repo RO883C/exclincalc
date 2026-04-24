@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, FileText, Printer, Trash2, ChevronDown, ChevronUp, Edit3, TrendingUp } from "lucide-react";
+import { ArrowLeft, Plus, FileText, Printer, Trash2, ChevronDown, ChevronUp, Edit3, TrendingUp, Link2, Copy, Check as CheckIcon, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { calculateAge } from "@/lib/pro/patientUtils";
 import { generateClinicalReportHTML, printReport } from "@/lib/pro/reportExport";
@@ -28,6 +28,18 @@ interface ClinicalRecord {
 
 interface SOAPNote {
   id: string; title: string | null; draft: boolean; created_at: string; updated_at: string;
+}
+
+interface Consent {
+  id: string; invite_token: string; invite_expires_at: string;
+  status: "pending" | "active" | "revoked" | "expired";
+  granted_at: string | null; patient_user_id: string | null;
+}
+
+interface PatientHealthRecord {
+  id: string; type: "manual" | "scan";
+  data: Record<string, string | number | null>;
+  ai_analysis: string | null; created_at: string;
 }
 
 interface TrendPoint { date: string; value: number; }
@@ -130,6 +142,12 @@ export default function PatientDetailPage() {
   const [doctorName, setDoctorName] = useState("");
   const [institution, setInstitution] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [consents, setConsents] = useState<Consent[]>([]);
+  const [inviteLink, setInviteLink] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [patientHealthRecords, setPatientHealthRecords] = useState<PatientHealthRecord[]>([]);
+  const [expandedHR, setExpandedHR] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -142,11 +160,13 @@ export default function PatientDetailPage() {
         { data: r },
         { data: n },
         { data: prof },
+        { data: c },
       ] = await Promise.all([
         supabase.from("doctor_patients").select("*").eq("id", id).single(),
         supabase.from("clinical_records").select("*").eq("patient_id", id).order("visit_date", { ascending: false }),
         supabase.from("soap_notes").select("id, title, draft, created_at, updated_at").eq("patient_id", id).order("updated_at", { ascending: false }),
         supabase.from("profiles").select("name, institution").eq("id", user.id).single(),
+        supabase.from("patient_consents").select("id, invite_token, invite_expires_at, status, granted_at, patient_user_id").eq("doctor_id", user.id).eq("doctor_patient_id", id).order("created_at", { ascending: false }).limit(20),
       ]);
 
       setPatient(p);
@@ -154,10 +174,56 @@ export default function PatientDetailPage() {
       setNotes(n || []);
       setDoctorName(prof?.name || "");
       setInstitution(prof?.institution || "");
+      const consentList = (c as Consent[]) || [];
+      setConsents(consentList);
+
+      // Fetch ClinCalc health_records for active consented patients
+      const activeConsent = consentList.find(x => x.status === "active" && x.patient_user_id);
+      if (activeConsent?.patient_user_id) {
+        const { data: hr } = await supabase
+          .from("health_records")
+          .select("id, type, data, ai_analysis, created_at")
+          .eq("user_id", activeConsent.patient_user_id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        setPatientHealthRecords((hr as PatientHealthRecord[]) || []);
+      }
+
       setLoading(false);
     };
     load();
   }, [id]);
+
+  const handleInvite = async () => {
+    setInviteLoading(true);
+    const res = await fetch("/api/pro/consent/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doctor_patient_id: id }),
+    });
+    if (res.ok) {
+      const { link } = await res.json();
+      setInviteLink(link);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: c } = await supabase.from("patient_consents").select("id, invite_token, invite_expires_at, status, granted_at, patient_user_id").eq("doctor_id", user.id).eq("doctor_patient_id", id).order("created_at", { ascending: false }).limit(20);
+      setConsents((c as Consent[]) || []);
+    }
+    setInviteLoading(false);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRevoke = async (consentId: string) => {
+    const supabase = createClient();
+    await supabase.rpc("revoke_consent", { p_consent_id: consentId });
+    setConsents(prev => prev.map(c => c.id === consentId ? { ...c, status: "revoked" as const } : c));
+  };
 
   const handleDelete = async () => {
     if (!confirm(`確定要刪除病患「${patient?.full_name}」的所有記錄？此操作無法復原。`)) return;
@@ -282,6 +348,59 @@ export default function PatientDetailPage() {
               </div>
             </div>
           )}
+
+          {/* 病患授權連結 */}
+          <div className="pro-card" style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+              <Users size={13} color="var(--pro-accent)" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--pro-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>ClinCalc 授權</span>
+            </div>
+
+            {/* 已授權的病患 */}
+            {consents.filter(c => c.status === "active").length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                {consents.filter(c => c.status === "active").map(c => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--pro-border)" }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "var(--pro-text)", fontWeight: 600 }}>已連結</div>
+                      <div style={{ fontSize: 10, color: "var(--pro-text-muted)" }}>
+                        {c.granted_at ? new Date(c.granted_at).toLocaleDateString("zh-TW") : ""}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRevoke(c.id)}
+                      style={{ fontSize: 10, color: "var(--pro-danger)", background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4 }}
+                    >
+                      撤銷
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 待接受的邀請 */}
+            {consents.filter(c => c.status === "pending").length > 0 && (
+              <div style={{ marginBottom: 10, fontSize: 11, color: "var(--pro-text-muted)" }}>
+                {consents.filter(c => c.status === "pending").length} 個邀請待病患確認
+              </div>
+            )}
+
+            {/* 產生邀請連結 */}
+            {inviteLink ? (
+              <div style={{ padding: "10px 12px", background: "var(--pro-bg)", borderRadius: 6, marginBottom: 8 }}>
+                <div style={{ fontSize: 10, color: "var(--pro-text-muted)", marginBottom: 6 }}>邀請連結（7天有效，請傳給病患）</div>
+                <div style={{ fontSize: 10, color: "var(--pro-text)", wordBreak: "break-all", marginBottom: 8, lineHeight: 1.5 }}>{inviteLink}</div>
+                <button onClick={handleCopyLink} className="pro-btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: 11, padding: "6px 0" }}>
+                  {copied ? <><CheckIcon size={11} /> 已複製</> : <><Copy size={11} /> 複製連結</>}
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleInvite} disabled={inviteLoading} className="pro-btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
+                <Link2 size={13} />
+                {inviteLoading ? "產生中..." : "邀請 ClinCalc 用戶授權"}
+              </button>
+            )}
+          </div>
 
           <button className="pro-btn-danger" onClick={handleDelete} disabled={deleting} style={{ width: "100%", justifyContent: "center" }}>
             <Trash2 size={13} />
@@ -415,6 +534,112 @@ export default function PatientDetailPage() {
                       .filter(r => typeof (r.objective as Record<string, unknown>)[k] === "number")
                       .map(r => ({ date: r.visit_date, value: (r.objective as Record<string, number>)[k] }));
                     return <TrendChart key={k} metricKey={k} points={points} sex={patient.sex} />;
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ClinCalc 病患自主健康記錄 */}
+          {patientHealthRecords.length > 0 && (() => {
+            // Build trendable metrics from health_records data
+            const VITAL_KEYS = ["bpSys", "bpDia", "hr", "temp", "weight", "height"];
+            const trendMap: Record<string, TrendPoint[]> = {};
+            const sorted = [...patientHealthRecords].reverse();
+            for (const hr of sorted) {
+              for (const key of VITAL_KEYS) {
+                const raw = hr.data?.[key];
+                const num = typeof raw === "number" ? raw : parseFloat(raw as string);
+                if (!isNaN(num) && isFinite(num) && num > 0) {
+                  if (!trendMap[key]) trendMap[key] = [];
+                  trendMap[key].push({ date: hr.created_at.slice(0, 10), value: num });
+                }
+              }
+            }
+            const trendKeys = Object.keys(trendMap).filter(k => trendMap[k].length >= 2);
+
+            return (
+              <div className="pro-card" style={{ padding: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                  <Users size={15} color="var(--pro-accent)" />
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--pro-text)" }}>
+                    ClinCalc 自主健康記錄
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--pro-text-muted)", marginLeft: "auto" }}>
+                    {patientHealthRecords.length} 筆 · 病患自填
+                  </span>
+                </div>
+
+                {/* Trend charts from self-reported data */}
+                {trendKeys.length > 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                    {trendKeys.map(k => (
+                      <TrendChart key={k} metricKey={k} points={trendMap[k]} sex={patient.sex} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Record list */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {patientHealthRecords.map(hr => {
+                    const symptoms = hr.data?._symptoms as string | null;
+                    const isOpen = expandedHR === hr.id;
+                    const vitals = VITAL_KEYS.filter(k => {
+                      const v = hr.data?.[k];
+                      return v !== "" && v !== null && v !== undefined;
+                    });
+                    return (
+                      <div key={hr.id} style={{ border: "1px solid var(--pro-border)", borderRadius: 7, overflow: "hidden" }}>
+                        <div
+                          onClick={() => setExpandedHR(isOpen ? null : hr.id)}
+                          style={{ padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--pro-card)" }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pro-text)" }}>
+                              {new Date(hr.created_at).toLocaleDateString("zh-TW")}
+                              <span style={{ fontWeight: 400, color: "var(--pro-text-muted)", marginLeft: 8 }}>
+                                {hr.type === "scan" ? "圖片掃描" : "健康數值"}
+                              </span>
+                            </div>
+                            {symptoms && (
+                              <div style={{ fontSize: 11, color: "var(--pro-text-muted)", marginTop: 2, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {symptoms.split("\n")[0]}
+                              </div>
+                            )}
+                          </div>
+                          {isOpen ? <ChevronUp size={13} color="var(--pro-text-muted)" /> : <ChevronDown size={13} color="var(--pro-text-muted)" />}
+                        </div>
+                        {isOpen && (
+                          <div style={{ padding: "12px 14px", background: "var(--pro-bg)", borderTop: "1px solid var(--pro-border)" }}>
+                            {vitals.length > 0 && (
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10 }}>
+                                {vitals.map(k => {
+                                  const ref = REFERENCE_RANGES.find(r => r.key === k);
+                                  return (
+                                    <div key={k} style={{ padding: "6px 8px", borderRadius: 5, background: "var(--pro-card)", fontSize: 11 }}>
+                                      <div style={{ color: "var(--pro-text-muted)", marginBottom: 1 }}>{ref?.label_zh ?? k}</div>
+                                      <div style={{ color: "var(--pro-accent)", fontWeight: 700 }}>{hr.data[k]} {ref?.unit}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {symptoms && (
+                              <div style={{ marginBottom: 8 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--pro-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>自述症狀</div>
+                                <div style={{ fontSize: 12, color: "var(--pro-text)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{symptoms}</div>
+                              </div>
+                            )}
+                            {hr.ai_analysis && (
+                              <div style={{ padding: "10px 12px", background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)", borderRadius: 6 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--pro-accent)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>AI 分析（ClinCalc）</div>
+                                <div style={{ fontSize: 11, color: "var(--pro-text-muted)", lineHeight: 1.7, whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>{hr.ai_analysis}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
                   })}
                 </div>
               </div>
