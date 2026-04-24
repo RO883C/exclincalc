@@ -161,7 +161,7 @@ export default function EncounterPage() {
         height: tvData.height ? String(tvData.height) : "",
       });
       // 標記已被調用（fire-and-forget 可接受，失敗不影響流程）
-      supabase2.from("triage_vitals").update({ used_at: new Date().toISOString() }).eq("id", tvData.id).catch(console.error);
+      void supabase2.from("triage_vitals").update({ used_at: new Date().toISOString() }).eq("id", tvData.id);
     }
     setPatient({ id: p.id, name: p.full_name, sex: (p.sex as "M" | "F") || "", age });
     setNameQuery(p.full_name);

@@ -62,14 +62,14 @@ export default function PharmacyPage() {
     // Query today's clinical records with non-empty prescriptions
     const { data } = await supabase
       .from("clinical_records")
-      .select("id, visit_date, chief_complaint, assessment, prescriptions, dispensed_at, patient:patient_id(full_name)")
+      .select("id, visit_date, chief_complaint, assessment, prescriptions, dispensed_at, patient:patient_id(full_name), doctor:doctor_id(full_name)")
       .eq("visit_date", today)
       .not("prescriptions", "eq", "[]")
       .not("prescriptions", "is", null)
       .order("created_at", { ascending: false });
 
     if (data) {
-      const records = data as PrescriptionRecord[];
+      const records = data as unknown as PrescriptionRecord[];
       setPendingRx(records.filter(r => !r.dispensed_at));
       setDispensedRx(records.filter(r => !!r.dispensed_at));
     }
