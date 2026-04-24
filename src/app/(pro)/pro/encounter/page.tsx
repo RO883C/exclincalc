@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ChevronRight, ChevronLeft, AlertTriangle, CheckCircle,
   Plus, X, Save, Search, UserPlus, RefreshCw, Printer,
@@ -91,6 +91,13 @@ export default function EncounterPage() {
   const [saved, setSaved] = useState(false);
   const [showRxModal, setShowRxModal] = useState(false);
 
+  // Read complaint from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlComplaint = params.get("complaint");
+    if (urlComplaint) setComplaints([decodeURIComponent(urlComplaint)]);
+  }, []);
+
   // Warn user before leaving with unsaved data
   useEffect(() => {
     const isDirty = complaints.length > 0 && !saved;
@@ -100,7 +107,7 @@ export default function EncounterPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [complaints, saved]);
 
-  // Load known patients for autocomplete
+  // Load known patients for autocomplete; auto-select if pid was in URL
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data }) => {
@@ -110,8 +117,16 @@ export default function EncounterPage() {
         .select("id, full_name, date_of_birth, sex")
         .eq("doctor_id", data.user.id)
         .order("full_name");
-      if (list) setKnownPatients(list as PatientRecord[]);
+      if (!list) return;
+      setKnownPatients(list as PatientRecord[]);
+      const pid = new URLSearchParams(window.location.search).get("pid");
+      if (pid) {
+        const found = (list as PatientRecord[]).find((p) => p.id === pid);
+        if (found) selectKnownPatient(found);
+      }
     });
+  // selectKnownPatient is stable (defined below), safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Template sync — driven by primary complaint

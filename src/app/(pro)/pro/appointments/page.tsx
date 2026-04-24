@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays, UserPlus, Clock, CheckCircle, XCircle,
-  PlayCircle, Hash, Phone, RefreshCw, ChevronDown, ChevronUp
+  PlayCircle, Hash, RefreshCw, Stethoscope, RotateCcw
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
 interface Appointment {
   id: string;
+  patient_id: string;
   queue_number: number;
   visit_date: string;
   nhi_number: string | null;
@@ -47,9 +49,10 @@ export default function AppointmentsPage() {
   const [patients, setPatients] = useState<{ id: string; full_name: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<"all" | "waiting" | "in_progress">("waiting");
+  const [filterStatus, setFilterStatus] = useState<"all" | "waiting" | "in_progress" | "cancelled">("waiting");
 
   const supabase = createClient();
+  const router = useRouter();
 
   const load = async () => {
     setLoading(true);
@@ -85,8 +88,16 @@ export default function AppointmentsPage() {
     await supabase.from("appointments").update({
       status,
       ...(status === "completed" ? { completed_at: new Date().toISOString() } : {}),
+      ...(status === "waiting" ? { completed_at: null } : {}),
     }).eq("id", id);
     load();
+  };
+
+  const callPatient = async (appt: Appointment) => {
+    await supabase.from("appointments").update({ status: "in_progress" }).eq("id", appt.id);
+    const params = new URLSearchParams({ pid: appt.patient_id });
+    if (appt.chief_complaint) params.set("complaint", encodeURIComponent(appt.chief_complaint));
+    router.push(`/pro/encounter?${params.toString()}`);
   };
 
   const addAppointment = async () => {
@@ -284,6 +295,7 @@ export default function AppointmentsPage() {
           { key: "waiting", label: "等候中" },
           { key: "in_progress", label: "診療中" },
           { key: "all", label: "全部" },
+          { key: "cancelled", label: "已取消" },
         ].map(f => (
           <button key={f.key} onClick={() => setFilterStatus(f.key as typeof filterStatus)} style={{
             padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
@@ -370,19 +382,41 @@ export default function AppointmentsPage() {
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   {appt.status === "waiting" && (
-                    <button onClick={() => updateStatus(appt.id, "in_progress")} title="開始診療" style={{
-                      padding: "6px", borderRadius: 6, border: "1px solid #f59e0b",
-                      background: "rgba(245,158,11,0.1)", color: "#f59e0b", cursor: "pointer",
+                    <button onClick={() => callPatient(appt)} title="叫號看診" style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "6px 10px", borderRadius: 6, border: "1px solid var(--pro-accent)",
+                      background: "rgba(var(--pro-accent-rgb, 59,130,246),0.1)", color: "var(--pro-accent)",
+                      cursor: "pointer", fontSize: 12, fontWeight: 600,
                     }}>
-                      <PlayCircle size={16} />
+                      <Stethoscope size={14} /> 叫號
                     </button>
                   )}
                   {appt.status === "in_progress" && (
-                    <button onClick={() => updateStatus(appt.id, "completed")} title="完成診療" style={{
-                      padding: "6px", borderRadius: 6, border: "1px solid #22c55e",
-                      background: "rgba(34,197,94,0.1)", color: "#22c55e", cursor: "pointer",
+                    <>
+                      <button onClick={() => callPatient(appt)} title="前往看診頁" style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "6px 10px", borderRadius: 6, border: "1px solid #f59e0b",
+                        background: "rgba(245,158,11,0.1)", color: "#f59e0b",
+                        cursor: "pointer", fontSize: 12, fontWeight: 600,
+                      }}>
+                        <PlayCircle size={14} /> 看診
+                      </button>
+                      <button onClick={() => updateStatus(appt.id, "completed")} title="完成診療" style={{
+                        padding: "6px", borderRadius: 6, border: "1px solid #22c55e",
+                        background: "rgba(34,197,94,0.1)", color: "#22c55e", cursor: "pointer",
+                      }}>
+                        <CheckCircle size={16} />
+                      </button>
+                    </>
+                  )}
+                  {appt.status === "cancelled" && (
+                    <button onClick={() => updateStatus(appt.id, "waiting")} title="回補候診" style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "6px 10px", borderRadius: 6, border: "1px solid #3b82f6",
+                      background: "rgba(59,130,246,0.1)", color: "#3b82f6",
+                      cursor: "pointer", fontSize: 12, fontWeight: 600,
                     }}>
-                      <CheckCircle size={16} />
+                      <RotateCcw size={14} /> 回補
                     </button>
                   )}
                   {(appt.status === "waiting" || appt.status === "in_progress") && (
