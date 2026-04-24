@@ -13,10 +13,10 @@ DECLARE
   today  DATE := CURRENT_DATE;
   p      UUID;
 BEGIN
-  -- Resolve doctor: first pro-role user found
-  SELECT id INTO doc_id FROM auth.users LIMIT 1;
+  -- Resolve doctor by email
+  SELECT id INTO doc_id FROM auth.users WHERE email = 'yuyulsc881209@icloud.com' LIMIT 1;
   IF doc_id IS NULL THEN
-    RAISE EXCEPTION 'No user found — create a doctor account first';
+    RAISE EXCEPTION 'Doctor account yuyulsc881209@icloud.com not found';
   END IF;
 
   -- ── Helper: insert patient + appointment + optional vitals ──
@@ -24,8 +24,8 @@ BEGIN
 
   -- ── Group 1: 感冒 / 上呼吸道 (10) ──────────────────────────
 
-  INSERT INTO doctor_patients (doctor_id,full_name,date_of_birth,sex,nhi_number,phone,address)
-  VALUES (doc_id,'林小明','1995-03-12','M','A123456789','0912345601','台北市中正區') RETURNING id INTO p;
+  INSERT INTO doctor_patients (doctor_id,full_name,date_of_birth,sex,nhi_number,phone)
+  VALUES (doc_id,'林小明','1995-03-12','M','A123456789','0912345601') RETURNING id INTO p;
   INSERT INTO appointments (doctor_id,patient_id,queue_number,visit_date,status,chief_complaint,nhi_number,checked_in_at)
   VALUES (doc_id,p,1,today,'completed','發燒、喉嚨痛','A123456789',today||' 08:10:00');
   INSERT INTO triage_vitals (patient_id,bp_sys,bp_dia,hr,rr,temp,spo2,weight,height,created_at,used_at)
