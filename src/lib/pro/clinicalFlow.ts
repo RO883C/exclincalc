@@ -407,6 +407,51 @@ export const COMPLAINT_TEMPLATES: ComplaintTemplate[] = [
     ],
     redFlags: ["嚴重憂鬱+有自殺意念", "呼吸中止+白天嗜睡+工作事故風險", "猝倒/睡眠麻痺（猝睡症）"],
   },
+  {
+    complaint: "慢性腎臟病追蹤",
+    icon: "🫘",
+    hpiQuestions: [
+      { id: "ckd_stage", question: "已知 CKD 分期？", type: "select", options: ["G1（eGFR≥90）", "G2（60-89）", "G3a（45-59）", "G3b（30-44）", "G4（15-29）", "G5（<15）", "尚未分期"] },
+      { id: "symptoms", question: "近期症狀？", type: "multiselect", options: ["無明顯症狀", "下肢水腫", "夜尿增多", "倦怠/疲勞", "食慾不振/噁心", "呼吸喘", "皮膚搔癢"] },
+      { id: "comorbid", question: "共病？", type: "multiselect", options: ["高血壓", "糖尿病", "高尿酸血症", "心臟病", "無共病"] },
+      { id: "medication", question: "目前用藥？", type: "multiselect", options: ["降壓藥（ACEI/ARB）", "降血糖藥", "利尿劑", "磷酸鹽結合劑", "鐵劑/EPO", "目前無用藥"] },
+      { id: "diet", question: "飲食控制？", type: "select", options: ["低鈉低磷飲食執行中", "部分執行", "尚未執行"] },
+      { id: "labs", question: "上次追蹤 eGFR？", type: "text" },
+    ],
+    rosPositives: ["高血壓（CKD 主要病因）", "糖尿病（CKD 主要共病）", "貧血（促紅素缺乏）", "骨骼疼痛（腎性骨病）"],
+    pePoints: ["血壓（RAS 阻斷劑治療目標 <130/80）", "下肢水腫程度（1+~4+）", "皮膚：尿毒素沉積/蒼白", "心肺：體液過載徵象"],
+    labPackages: ["renal", "electrolytes", "cbc", "glucose"],
+    commonDx: [
+      { name_zh: "慢性腎臟病（需標明分期）", icd10: "N18.9" },
+      { name_zh: "CKD G3a", icd10: "N18.3" },
+      { name_zh: "CKD G4", icd10: "N18.4" },
+      { name_zh: "CKD G5", icd10: "N18.5" },
+      { name_zh: "糖尿病腎病變", icd10: "E11.65" },
+    ],
+    redFlags: ["eGFR 快速下降（>5 mL/min/年）", "高鉀血症（K+>6.0 mEq/L）", "尿毒症徵象（噁心/嘔吐/意識混亂）", "需緊急透析評估"],
+  },
+  {
+    complaint: "COVID-19/呼吸道感染",
+    icon: "🦠",
+    hpiQuestions: [
+      { id: "test", question: "快篩/PCR 結果？", type: "select", options: ["快篩陽性", "快篩陰性（症狀疑似）", "PCR 確認陽性", "未檢測"] },
+      { id: "onset", question: "發病時間？", type: "select", options: ["今天", "1-2 天前", "3-5 天前", "超過 5 天"] },
+      { id: "symptoms", question: "主要症狀？", type: "multiselect", options: ["發燒", "喉嚨痛", "咳嗽（乾）", "流鼻水/鼻塞", "全身痠痛", "頭痛", "倦怠", "腹瀉", "味覺/嗅覺喪失", "呼吸困難"] },
+      { id: "spo2", question: "SpO₂（若有量測）？", type: "text" },
+      { id: "vaccine", question: "COVID 疫苗接種史？", type: "select", options: ["3劑以上已接種", "2劑已接種", "1劑", "未接種", "不確定"] },
+      { id: "risk", question: "高風險族群？", type: "multiselect", options: ["65 歲以上", "免疫低下", "慢性腎臟病", "糖尿病", "心血管疾病", "無高風險因素"] },
+    ],
+    rosPositives: ["SpO₂ <95%（需監測）", "胸悶/胸痛", "意識改變"],
+    pePoints: ["SpO₂（血氧）", "呼吸音（有無濕囉音）", "喉部（紅腫/分泌物）", "頸部淋巴結"],
+    labPackages: ["cbc", "liver"],
+    commonDx: [
+      { name_zh: "COVID-19 確診（輕症）", icd10: "U07.1" },
+      { name_zh: "COVID-19（PCR 確認）", icd10: "U07.1" },
+      { name_zh: "急性上呼吸道感染", icd10: "J06.9" },
+      { name_zh: "COVID-19 後遺症", icd10: "U09.9" },
+    ],
+    redFlags: ["SpO₂ <94%（需住院評估）", "呼吸困難 + 胸痛", "意識改變/混亂", "高危族群症狀惡化（老年/免疫低下）"],
+  },
 ];
 
 // ── 身體檢查模板 ──────────────────────────────────────────────
