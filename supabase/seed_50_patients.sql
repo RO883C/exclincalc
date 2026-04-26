@@ -14,9 +14,9 @@ DECLARE
   p      UUID;
 BEGIN
   -- Resolve doctor by email
-  SELECT id INTO doc_id FROM auth.users WHERE email = 'yuyulsc881209@icloud.com' LIMIT 1;
+  SELECT id INTO doc_id FROM auth.users WHERE email = 'YOUR_DOCTOR_EMAIL@example.com' LIMIT 1;
   IF doc_id IS NULL THEN
-    RAISE EXCEPTION 'Doctor account yuyulsc881209@icloud.com not found';
+    RAISE EXCEPTION 'Doctor account YOUR_DOCTOR_EMAIL@example.com not found';
   END IF;
 
   -- ── Helper: insert patient + appointment + optional vitals ──

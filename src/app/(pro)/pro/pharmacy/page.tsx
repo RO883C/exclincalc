@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   FlaskConical, Search, AlertTriangle, BookOpen, Pill,
-  ShieldAlert, CheckCircle, Package, RefreshCw, Clock
+  ShieldAlert, CheckCircle, Package, RefreshCw, Clock,
+  Edit2, X as XIcon, Plus, Save,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import Link from "next/link";
@@ -29,6 +30,7 @@ interface PrescriptionRecord {
 interface PrescriptionItem {
   drug: string; generic: string; dose: string;
   frequency: string; route: string; note?: string; nhiCode?: string;
+  days?: number;          // 預計使用天數（藥師可調整）
   dispensed?: boolean;
 }
 
@@ -47,6 +49,11 @@ export default function PharmacyPage() {
   const [dispensing, setDispensing] = useState<string | null>(null);
   const [showDispensed, setShowDispensed] = useState(false);
 
+  // 編輯模式 state（藥師可調整處方）
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editedRx, setEditedRx] = useState<PrescriptionItem[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const supabase = createClient();
 
   const loadMeds = async () => {
@@ -58,11 +65,13 @@ export default function PharmacyPage() {
 
   const loadPrescriptions = async () => {
     setRxLoading(true);
-    const today = new Date().toISOString().split("T")[0];
+    // 用 local date 格式（與畫面顯示一致），避免 UTC 時差導致跨日漏資料
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     // Query today's clinical records with non-empty prescriptions
     const { data } = await supabase
       .from("clinical_records")
-      .select("id, visit_date, chief_complaint, assessment, prescriptions, dispensed_at, patient:patient_id(full_name), doctor:doctor_id(full_name)")
+      .select("id, visit_date, chief_complaint, assessment, prescriptions, dispensed_at, patient:patient_id(full_name)")
       .eq("visit_date", today)
       .not("prescriptions", "eq", "[]")
       .not("prescriptions", "is", null)
@@ -93,6 +102,43 @@ export default function PharmacyPage() {
     }).eq("id", recordId);
     await loadPrescriptions();
     setDispensing(null);
+  };
+
+  // 進入編輯模式：載入該筆處方供調整
+  const startEdit = (record: PrescriptionRecord) => {
+    setEditingId(record.id);
+    setEditedRx(JSON.parse(JSON.stringify(record.prescriptions)));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditedRx([]);
+  };
+
+  const updateField = (idx: number, field: keyof PrescriptionItem, value: string | number) => {
+    setEditedRx(prev => prev.map((rx, i) => i === idx ? { ...rx, [field]: value } : rx));
+  };
+
+  const removeItem = (idx: number) => {
+    setEditedRx(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const addItem = () => {
+    setEditedRx(prev => [...prev, {
+      drug: "", generic: "", dose: "", frequency: "QD", route: "PO",
+      days: 7, note: "",
+    }]);
+  };
+
+  const saveEdit = async (recordId: string) => {
+    setSavingEdit(true);
+    await supabase.from("clinical_records").update({
+      prescriptions: editedRx,
+    }).eq("id", recordId);
+    setEditingId(null);
+    setEditedRx([]);
+    await loadPrescriptions();
+    setSavingEdit(false);
   };
 
   const filtered = meds.filter(m => {
@@ -199,19 +245,54 @@ export default function PharmacyPage() {
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={() => dispense(record.id)}
-                      disabled={dispensing === record.id}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6,
-                        padding: "8px 16px", borderRadius: 8, border: "none",
-                        background: dispensing === record.id ? "#4b5563" : "#22c55e",
-                        color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-                        flexShrink: 0,
-                      }}>
-                      <CheckCircle size={14} />
-                      {dispensing === record.id ? "確認中…" : "完成調配"}
-                    </button>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      {editingId === record.id ? (
+                        <>
+                          <button
+                            onClick={() => saveEdit(record.id)}
+                            disabled={savingEdit}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 6,
+                              padding: "8px 14px", borderRadius: 8, border: "none",
+                              background: savingEdit ? "#4b5563" : "#3b82f6",
+                              color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                            }}>
+                            <Save size={13} /> {savingEdit ? "儲存中…" : "儲存修改"}
+                          </button>
+                          <button onClick={cancelEdit}
+                            style={{
+                              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--pro-border)",
+                              background: "transparent", color: "var(--pro-text-muted)",
+                              fontSize: 13, cursor: "pointer",
+                            }}>取消</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(record)}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 6,
+                              padding: "8px 14px", borderRadius: 8,
+                              border: "1px solid var(--pro-border)",
+                              background: "transparent", color: "var(--pro-text)",
+                              fontSize: 13, cursor: "pointer",
+                            }}>
+                            <Edit2 size={13} /> 修改處方
+                          </button>
+                          <button
+                            onClick={() => dispense(record.id)}
+                            disabled={dispensing === record.id}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 6,
+                              padding: "8px 16px", borderRadius: 8, border: "none",
+                              background: dispensing === record.id ? "#4b5563" : "#22c55e",
+                              color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                            }}>
+                            <CheckCircle size={14} />
+                            {dispensing === record.id ? "確認中…" : "完成調配"}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Prescription items */}
@@ -219,8 +300,8 @@ export default function PharmacyPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead>
                         <tr style={{ borderBottom: "1px solid var(--pro-border)" }}>
-                          {["藥物名稱", "學名", "劑量", "頻次", "途徑", "備註"].map(h => (
-                            <th key={h} style={{
+                          {["藥物", "學名", "劑量", "頻次", "途徑", "天數", "備註", ...(editingId === record.id ? [""] : [])].map((h, idx) => (
+                            <th key={idx} style={{
                               padding: "7px 10px", textAlign: "left", fontWeight: 600,
                               color: "var(--pro-text-muted)", fontSize: 11,
                             }}>{h}</th>
@@ -228,18 +309,73 @@ export default function PharmacyPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(record.prescriptions as PrescriptionItem[]).map((rx, i) => (
-                          <tr key={i} style={{ borderBottom: i < record.prescriptions.length - 1 ? "1px solid var(--pro-border)" : "none" }}>
-                            <td style={{ padding: "8px 10px", fontWeight: 600, color: "var(--pro-text)" }}>{rx.drug}</td>
-                            <td style={{ padding: "8px 10px", color: "var(--pro-text-muted)" }}>{rx.generic}</td>
-                            <td style={{ padding: "8px 10px", color: "var(--pro-text)" }}>{rx.dose}</td>
-                            <td style={{ padding: "8px 10px", color: "var(--pro-text)" }}>{rx.frequency}</td>
-                            <td style={{ padding: "8px 10px", color: "var(--pro-text-muted)" }}>{rx.route}</td>
-                            <td style={{ padding: "8px 10px", color: "#f59e0b", fontSize: 11 }}>{rx.note ?? "—"}</td>
-                          </tr>
-                        ))}
+                        {(editingId === record.id ? editedRx : record.prescriptions as PrescriptionItem[]).map((rx, i) => {
+                          const isEdit = editingId === record.id;
+                          const inputStyle: React.CSSProperties = {
+                            width: "100%", padding: "4px 6px",
+                            background: "var(--pro-surface)", border: "1px solid var(--pro-border)",
+                            borderRadius: 4, color: "var(--pro-text)", fontSize: 12,
+                          };
+                          return (
+                            <tr key={i} style={{ borderBottom: "1px solid var(--pro-border)" }}>
+                              <td style={{ padding: "8px 10px", fontWeight: 600, color: "var(--pro-text)" }}>
+                                {isEdit ? <input style={inputStyle} value={rx.drug} onChange={e => updateField(i, "drug", e.target.value)} /> : rx.drug}
+                              </td>
+                              <td style={{ padding: "8px 10px", color: "var(--pro-text-muted)" }}>
+                                {isEdit ? <input style={inputStyle} value={rx.generic} onChange={e => updateField(i, "generic", e.target.value)} /> : rx.generic}
+                              </td>
+                              <td style={{ padding: "8px 10px", color: "var(--pro-text)" }}>
+                                {isEdit ? <input style={{ ...inputStyle, width: 80 }} value={rx.dose} onChange={e => updateField(i, "dose", e.target.value)} /> : rx.dose}
+                              </td>
+                              <td style={{ padding: "8px 10px", color: "var(--pro-text)" }}>
+                                {isEdit ? (
+                                  <select style={{ ...inputStyle, width: 76 }} value={rx.frequency} onChange={e => updateField(i, "frequency", e.target.value)}>
+                                    {["QD", "BID", "TID", "QID", "Q4H", "Q6H", "Q8H", "PRN", "HS", "AC", "PC"].map(f => <option key={f} value={f}>{f}</option>)}
+                                  </select>
+                                ) : rx.frequency}
+                              </td>
+                              <td style={{ padding: "8px 10px", color: "var(--pro-text-muted)" }}>
+                                {isEdit ? (
+                                  <select style={{ ...inputStyle, width: 64 }} value={rx.route} onChange={e => updateField(i, "route", e.target.value)}>
+                                    {["PO", "IV", "IM", "SC", "SL", "PR", "INH", "TOP"].map(r => <option key={r} value={r}>{r}</option>)}
+                                  </select>
+                                ) : rx.route}
+                              </td>
+                              <td style={{ padding: "8px 10px", color: "var(--pro-accent)", fontWeight: 600 }}>
+                                {isEdit ? (
+                                  <input type="number" min={1} max={90} style={{ ...inputStyle, width: 60 }} value={rx.days ?? 7} onChange={e => updateField(i, "days", Number(e.target.value))} />
+                                ) : `${rx.days ?? 7} 天`}
+                              </td>
+                              <td style={{ padding: "8px 10px", color: "#f59e0b", fontSize: 11 }}>
+                                {isEdit ? <input style={inputStyle} value={rx.note ?? ""} onChange={e => updateField(i, "note", e.target.value)} placeholder="備註" /> : (rx.note ?? "—")}
+                              </td>
+                              {isEdit && (
+                                <td style={{ padding: "8px 6px", width: 30 }}>
+                                  <button onClick={() => removeItem(i)} title="移除此項"
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 4 }}>
+                                    <XIcon size={14} />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
+                    {editingId === record.id && (
+                      <div style={{ padding: "8px 10px", borderTop: "1px solid var(--pro-border)" }}>
+                        <button onClick={addItem}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 5,
+                            padding: "5px 10px", borderRadius: 6,
+                            border: "1px dashed var(--pro-border)",
+                            background: "transparent", color: "var(--pro-accent)",
+                            fontSize: 12, cursor: "pointer",
+                          }}>
+                          <Plus size={12} /> 新增藥物
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

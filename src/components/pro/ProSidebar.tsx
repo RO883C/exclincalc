@@ -172,11 +172,14 @@ export default function ProSidebar() {
                 {(profile.name || "D").charAt(0).toUpperCase()}
               </div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pro-text)" }}>
-                  {profile.name || "醫師"}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--pro-text)" }}>
+                    {profile.name || "醫師"}
+                  </span>
+                  <RoleBadge role={profile.pro_role} />
                 </div>
                 {profile.institution && (
-                  <div style={{ fontSize: 11, color: "var(--pro-text-muted)" }}>
+                  <div style={{ fontSize: 11, color: "var(--pro-text-muted)", marginTop: 2 }}>
                     {profile.institution}
                   </div>
                 )}
@@ -221,5 +224,27 @@ export default function ProSidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+// 角色標籤：依 pro_role 顯示中文名稱與對應顏色
+function RoleBadge({ role }: { role: string }) {
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    doctor:       { label: "醫師",   color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+    nurse:        { label: "護理師", color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+    pharmacist:   { label: "藥師",   color: "#ec4899", bg: "rgba(236,72,153,0.15)" },
+    admin_staff:  { label: "行政",   color: "#8b5cf6", bg: "rgba(139,92,246,0.15)" },
+    admin:        { label: "管理員", color: "#10b981", bg: "rgba(16,185,129,0.15)" },
+    super_admin:  { label: "超級管理員", color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+  };
+  const info = map[role] || { label: role, color: "#94a3b8", bg: "rgba(148,163,184,0.15)" };
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+      color: info.color, background: info.bg,
+      border: `1px solid ${info.color}40`, lineHeight: 1.4,
+    }}>
+      {info.label}
+    </span>
   );
 }

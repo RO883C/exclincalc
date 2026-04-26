@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Users, Shield, ShieldOff, Trash2, KeyRound,
-  CheckCircle, RefreshCw, ChevronDown, ChevronRight,
+  CheckCircle, RefreshCw, ChevronDown, ChevronRight, Smartphone,
 } from "lucide-react";
 
 // ── Role definitions (Pro roles only) ─────────────────────────────
@@ -104,6 +104,28 @@ export default function AdminUsersPage() {
     setNewPassword("");
     setActionLoading(null);
     alert("密碼已重設成功");
+  };
+
+  const resetMfa = async (user: UserRow) => {
+    const ok = confirm(
+      `確定要為 ${user.email} 重置 TOTP 雙重驗證？\n\n` +
+      `此操作會移除該用戶綁定的所有驗證器，下次登入時系統會引導其重新設定 2FA。\n\n` +
+      `通常用於：\n` +
+      `• 用戶連續輸入錯誤被鎖定\n` +
+      `• 用戶遺失驗證器手機\n` +
+      `• 用戶換新手機尚未匯入舊驗證器`
+    );
+    if (!ok) return;
+    setActionLoading(user.id);
+    const res = await fetch("/api/pro/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset_mfa", userId: user.id }),
+    });
+    const json = await res.json();
+    setActionLoading(null);
+    if (json.error) { alert(`操作失敗：${json.error}`); return; }
+    alert(`已移除 ${json.removed ?? 0} 個驗證器，使用者下次登入將重新設定 TOTP`);
   };
 
   const fmt = (iso: string | null) => {
@@ -241,6 +263,18 @@ export default function AdminUsersPage() {
               }}
             >
               <KeyRound size={11} />
+            </button>
+            <button
+              onClick={() => resetMfa(u)}
+              disabled={actionLoading === u.id}
+              title="重置 2FA / 解除 MFA 鎖定"
+              style={{
+                padding: "4px 8px", borderRadius: 5, fontSize: 11, cursor: "pointer",
+                border: "1px solid rgba(245,158,11,0.3)",
+                background: "transparent", color: "#f59e0b",
+              }}
+            >
+              <Smartphone size={11} />
             </button>
             {canDelete(u) && (
               <button

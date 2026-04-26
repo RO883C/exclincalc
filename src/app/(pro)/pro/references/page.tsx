@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, X, ExternalLink, Search, BookOpen, Globe, FileText, Play, Bookmark, BookMarked, Copy, Trash2, RefreshCw, ArrowUpCircle, LayoutGrid, List, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, X, ExternalLink, Search, BookOpen, Globe, FileText, Play, Bookmark, BookMarked, Copy, Trash2, RefreshCw, ArrowUpCircle, LayoutGrid, List, ChevronDown, ChevronUp, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
 interface Resource {
@@ -75,6 +75,48 @@ export default function ReferencesPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
+  // Favorites（前端本機儲存：每個帳號各自的 starred 列表）
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
+  const FAV_KEY = "pro_ref_favorites_v1";
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAV_KEY);
+      if (raw) setFavIds(new Set(JSON.parse(raw)));
+    } catch { /* noop */ }
+  }, []);
+
+  const toggleFav = (id: string) => {
+    setFavIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(FAV_KEY, JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  // 預設置頂：第一次載入時把 ADA / KDIGO / ACC/AHA 等指引自動標 fav
+  useEffect(() => {
+    if (resources.length === 0) return;
+    const initialized = localStorage.getItem(FAV_KEY + "_init");
+    if (initialized) return;
+    const autoFav = new Set<string>();
+    for (const r of resources) {
+      const t = (r.title || "").toLowerCase();
+      if (/(ada|kdigo|acc.aha|standards of care|clinical practice guideline)/i.test(t)) {
+        autoFav.add(r.id);
+      }
+    }
+    if (autoFav.size > 0) {
+      setFavIds(prev => {
+        const next = new Set([...prev, ...autoFav]);
+        localStorage.setItem(FAV_KEY, JSON.stringify([...next]));
+        return next;
+      });
+    }
+    localStorage.setItem(FAV_KEY + "_init", "1");
+  }, [resources]);
+
   const load = async () => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -107,6 +149,13 @@ export default function ReferencesPage() {
       r.source?.toLowerCase().includes(q) ||
       r.tags.some(t => t.toLowerCase().includes(q));
     return matchCat && matchSearch;
+  }).sort((a, b) => {
+    // 已收藏（星號）置頂
+    const aFav = favIds.has(a.id);
+    const bFav = favIds.has(b.id);
+    if (aFav && !bFav) return -1;
+    if (!aFav && bFav) return 1;
+    return 0;
   });
 
   // Duplicate detection: group by normalized title
@@ -439,6 +488,8 @@ export default function ReferencesPage() {
           isAdmin={isAdmin}
           onDelete={handleDelete}
           onUpdateCover={handleUpdateCover}
+          favIds={favIds}
+          onToggleFav={toggleFav}
         />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
@@ -450,6 +501,8 @@ export default function ReferencesPage() {
               isAdmin={isAdmin}
               onDelete={handleDelete}
               onUpdateCover={handleUpdateCover}
+              isFavorite={favIds.has(r.id)}
+              onToggleFav={toggleFav}
             />
           ))}
         </div>
@@ -560,12 +613,14 @@ export default function ReferencesPage() {
 
 const COLLECTION_CATS = ["指引", "文章", "網站", "影音"];
 
-function CollectionView({ resources, currentUserId, isAdmin, onDelete, onUpdateCover }: {
+function CollectionView({ resources, currentUserId, isAdmin, onDelete, onUpdateCover, favIds, onToggleFav }: {
   resources: Resource[];
   currentUserId: string | null;
   isAdmin: boolean;
   onDelete: (id: string) => void;
   onUpdateCover: (id: string, url: string) => void;
+  favIds: Set<string>;
+  onToggleFav: (id: string) => void;
 }) {
   const books = resources.filter(r => r.category === "書籍");
   const nonBooks = resources.filter(r => r.category !== "書籍");
@@ -728,6 +783,8 @@ function CollectionView({ resources, currentUserId, isAdmin, onDelete, onUpdateC
                 isAdmin={isAdmin}
                 onDelete={onDelete}
                 onUpdateCover={onUpdateCover}
+                isFavorite={favIds.has(r.id)}
+                onToggleFav={onToggleFav}
               />
             ))}
           </div>}
@@ -743,12 +800,14 @@ function CollectionView({ resources, currentUserId, isAdmin, onDelete, onUpdateC
 
 // ── 資源卡片元件 ────────────────────────────────────────────
 
-function ResourceCard({ r, currentUserId, isAdmin, onDelete, onUpdateCover }: {
+function ResourceCard({ r, currentUserId, isAdmin, onDelete, onUpdateCover, isFavorite, onToggleFav }: {
   r: Resource;
   currentUserId: string | null;
   isAdmin: boolean;
   onDelete: (id: string) => void;
   onUpdateCover: (id: string, url: string) => void;
+  isFavorite?: boolean;
+  onToggleFav?: (id: string) => void;
 }) {
   const canDelete = isAdmin || r.created_by === currentUserId;
   const canEdit = isAdmin || r.created_by === currentUserId;
@@ -805,11 +864,30 @@ function ResourceCard({ r, currentUserId, isAdmin, onDelete, onUpdateCover }: {
         </div>
       </div>
     )}
-    <div className="pro-card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform 0.1s", cursor: editingCover ? "default" : "pointer" }}
+    <div className="pro-card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform 0.1s", cursor: editingCover ? "default" : "pointer", border: isFavorite ? "1px solid rgba(245,158,11,0.5)" : undefined }}
       onClick={handleCardClick}
     >
       {/* Cover area */}
       <div style={{ position: "relative", height: 140, background: "var(--pro-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+        {/* 星號收藏：右上角 */}
+        {onToggleFav && (
+          <button
+            onClick={e => { e.stopPropagation(); onToggleFav(r.id); }}
+            title={isFavorite ? "取消收藏" : "加入收藏（置頂）"}
+            style={{
+              position: "absolute", top: 6, right: 6, zIndex: 2,
+              width: 28, height: 28, borderRadius: "50%",
+              background: isFavorite ? "rgba(245,158,11,0.95)" : "rgba(0,0,0,0.45)",
+              border: "1px solid " + (isFavorite ? "#f59e0b" : "rgba(255,255,255,0.3)"),
+              color: isFavorite ? "#fff" : "rgba(255,255,255,0.9)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", padding: 0,
+              boxShadow: isFavorite ? "0 2px 8px rgba(245,158,11,0.4)" : "0 1px 4px rgba(0,0,0,0.3)",
+            }}
+          >
+            <Star size={14} fill={isFavorite ? "#fff" : "none"} strokeWidth={2.2} />
+          </button>
+        )}
         {r.cover_url && !imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

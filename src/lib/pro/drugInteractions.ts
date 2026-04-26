@@ -35,62 +35,62 @@ const STATIC_CRITICAL: Array<{
   {
     a: "warfarin", b: "aspirin",
     severity: "major",
-    description: "Concurrent use significantly increases bleeding risk. Monitor INR closely and watch for signs of hemorrhage.",
+    description: "兩者併用會顯著增加出血風險（包括胃腸道出血、皮下瘀青、顱內出血）。臨床建議：密切監測 INR，避免合併使用；若必須合併，建議低劑量 Aspirin 並加 PPI 保護胃黏膜。",
   },
   {
     a: "warfarin", b: "ibuprofen",
     severity: "major",
-    description: "NSAIDs displace warfarin from protein binding and inhibit platelet function, increasing hemorrhagic risk.",
+    description: "NSAIDs 會置換 Warfarin 的蛋白結合並抑制血小板功能，雙重提升出血風險。臨床建議：改用 Acetaminophen 止痛，避免 NSAIDs；如需短期使用，需密切觀察出血徵象。",
   },
   {
     a: "metformin", b: "contrast",
     severity: "major",
-    description: "Iodinated contrast media can cause acute kidney injury, increasing risk of metformin-associated lactic acidosis. Hold metformin 48h before and after contrast.",
+    description: "碘造影劑可能造成急性腎傷害（AKI），進而提高 Metformin 引起的乳酸中毒風險。臨床建議：造影前 48 小時停 Metformin，造影後待腎功能恢復再恢復用藥。",
   },
   {
     a: "simvastatin", b: "amiodarone",
     severity: "major",
-    description: "Amiodarone inhibits CYP3A4, markedly increasing simvastatin levels and risk of myopathy/rhabdomyolysis. Limit simvastatin to 20mg/day.",
+    description: "Amiodarone 抑制 CYP3A4，使 Simvastatin 血中濃度顯著上升，增加肌病變與橫紋肌溶解風險。臨床建議：Simvastatin 劑量不超過 20 mg/day，或改用 Pravastatin、Rosuvastatin。",
   },
   {
     a: "sildenafil", b: "硝酸",
     severity: "contraindicated",
-    description: "Combination of PDE-5 inhibitors with nitrates causes severe hypotension. Absolutely contraindicated.",
+    description: "PDE-5 抑制劑與硝酸鹽類併用會造成嚴重低血壓（血壓驟降至休克程度）。臨床建議：絕對禁用，最少間隔 24 小時；急性胸痛病患使用 Sildenafil 後勿給硝酸鹽。",
   },
   {
     a: "sildenafil", b: "nitrate",
     severity: "contraindicated",
-    description: "Combination of PDE-5 inhibitors with nitrates causes severe hypotension. Absolutely contraindicated.",
+    description: "PDE-5 抑制劑與硝酸鹽類併用會造成嚴重低血壓（血壓驟降至休克程度）。臨床建議：絕對禁用，最少間隔 24 小時；急性胸痛病患使用 Sildenafil 後勿給硝酸鹽。",
   },
   {
     a: "clopidogrel", b: "omeprazole",
     severity: "moderate",
-    description: "Omeprazole inhibits CYP2C19, reducing activation of clopidogrel and diminishing antiplatelet effect. Consider pantoprazole as alternative.",
+    description: "Omeprazole 抑制 CYP2C19，降低 Clopidogrel 活化，使抗血小板效果下降，可能增加心血管事件風險。臨床建議：改用 Pantoprazole 或 H2 blocker 替代。",
   },
   {
     a: "ssri", b: "tramadol",
     severity: "major",
-    description: "Risk of serotonin syndrome. Monitor for agitation, clonus, diaphoresis, and hyperthermia.",
+    description: "兩者皆增加血清素濃度，併用有血清素症候群風險（症狀：躁動、肌陣攣、出汗、體溫升高、意識改變）。臨床建議：避免合併使用；若必須使用，密切監測症狀並備好支持治療。",
   },
   {
     a: "fluoroquinolone", b: "antacid",
     severity: "moderate",
-    description: "Divalent cations (Mg²⁺, Al³⁺, Ca²⁺) chelate fluoroquinolones, reducing absorption by up to 50%. Separate administration by 2 hours.",
+    description: "制酸劑中的二價陽離子（Mg²⁺、Al³⁺、Ca²⁺）會與氟喹諾酮類螯合，降低吸收率達 50%。臨床建議：兩藥服用時間至少間隔 2 小時。",
   },
   {
     a: "amlodipine", b: "simvastatin",
     severity: "moderate",
-    description: "Amlodipine inhibits CYP3A4, increasing simvastatin exposure. Limit simvastatin to 20mg/day when co-administered.",
+    description: "Amlodipine 抑制 CYP3A4，使 Simvastatin 暴露量增加，提高肌病變風險。臨床建議：合併使用時 Simvastatin 不超過 20 mg/day。",
   },
   {
     a: "digoxin", b: "amiodarone",
     severity: "major",
-    description: "Amiodarone inhibits P-glycoprotein and reduces renal clearance of digoxin. Reduce digoxin dose by 50% and monitor levels.",
+    description: "Amiodarone 抑制 P-glycoprotein 並降低 Digoxin 的腎清除率，可能造成 Digoxin 中毒（症狀：噁心、視力異常、心律不整）。臨床建議：Digoxin 減半量，每週監測血中濃度。",
   },
   {
     a: "methotrexate", b: "nsaid",
     severity: "major",
-    description: "NSAIDs reduce renal clearance of methotrexate, leading to methotrexate toxicity (pancytopenia, mucositis).",
+    description: "NSAIDs 降低 Methotrexate 的腎清除率，導致 Methotrexate 毒性（全血球減少、口腔潰瘍、肝毒性）。臨床建議：避免合併；如必須使用，密切監測 CBC 與肝腎功能。",
   },
 ];
 
@@ -106,22 +106,33 @@ export function checkInteractions(
   const results: InteractionResult[] = [];
   const seen = new Set<string>();
 
+  // 為每個藥建立「可搜字串」 = name_zh + name_en + generic_name（若有 medsDB 即用其全部別名）
+  const aliasFor = (drugName: string): string => {
+    const med = medsWithInteractions?.find(m =>
+      m.name_zh === drugName ||
+      m.name_en.toLowerCase() === drugName.toLowerCase() ||
+      m.generic_name?.toLowerCase() === drugName.toLowerCase()
+    );
+    if (med) {
+      return [med.name_zh, med.name_en, med.generic_name].filter(Boolean).join(" ").toLowerCase();
+    }
+    return drugName.toLowerCase();
+  };
+
   for (let i = 0; i < drugNames.length; i++) {
     for (let j = i + 1; j < drugNames.length; j++) {
-      const a = drugNames[i].toLowerCase();
-      const b = drugNames[j].toLowerCase();
+      const aliasA = aliasFor(drugNames[i]);
+      const aliasB = aliasFor(drugNames[j]);
       const pairKey = [drugNames[i], drugNames[j]].sort().join("||");
       if (seen.has(pairKey)) continue;
       seen.add(pairKey);
 
-      // Check static table
-      // One-directional: drug name must CONTAIN the key (not reverse) to prevent
-      // false positives (e.g., "statin" should NOT match pair key "simvastatin")
+      // Static table：檢查 alias（含中英文與 generic name）是否包含 pair key
       for (const pair of STATIC_CRITICAL) {
-        const matchA = a.includes(pair.a);
-        const matchB = b.includes(pair.b);
-        const matchAB = a.includes(pair.b);
-        const matchBA = b.includes(pair.a);
+        const matchA = aliasA.includes(pair.a);
+        const matchB = aliasB.includes(pair.b);
+        const matchAB = aliasA.includes(pair.b);
+        const matchBA = aliasB.includes(pair.a);
         if ((matchA && matchB) || (matchAB && matchBA)) {
           results.push({
             drugA: drugNames[i],
@@ -132,26 +143,32 @@ export function checkInteractions(
         }
       }
 
-      // Check medications DB interactions field
+      // medications DB interactions field：用 target 的全部別名比對
       if (medsWithInteractions) {
         const medA = medsWithInteractions.find(m =>
-          m.name_zh === drugNames[i] || m.name_en.toLowerCase() === a ||
-          m.generic_name?.toLowerCase() === a
+          m.name_zh === drugNames[i] ||
+          m.name_en.toLowerCase() === drugNames[i].toLowerCase() ||
+          m.generic_name?.toLowerCase() === drugNames[i].toLowerCase()
         );
         const medB = medsWithInteractions.find(m =>
-          m.name_zh === drugNames[j] || m.name_en.toLowerCase() === b ||
-          m.generic_name?.toLowerCase() === b
+          m.name_zh === drugNames[j] ||
+          m.name_en.toLowerCase() === drugNames[j].toLowerCase() ||
+          m.generic_name?.toLowerCase() === drugNames[j].toLowerCase()
         );
 
-        // Check if medA lists medB in its interactions, or vice versa
-        const checkInList = (med: typeof medA, target: string): boolean => {
+        // 檢查 med 的 interactions 陣列是否含 target 的任一別名
+        const checkInList = (med: typeof medA, targetMed: typeof medB, targetName: string): boolean => {
           if (!med?.interactions) return false;
-          return med.interactions.some(interaction =>
-            interaction.toLowerCase().includes(target.toLowerCase())
-          );
+          const targetAliases = targetMed
+            ? [targetMed.name_zh, targetMed.name_en, targetMed.generic_name].filter(Boolean) as string[]
+            : [targetName];
+          return med.interactions.some(interaction => {
+            const lowered = interaction.toLowerCase();
+            return targetAliases.some(alias => lowered.includes(alias.toLowerCase()));
+          });
         };
 
-        if (medA && checkInList(medA, drugNames[j])) {
+        if (medA && checkInList(medA, medB, drugNames[j])) {
           if (!results.find(r => r.drugA === drugNames[i] && r.drugB === drugNames[j])) {
             results.push({
               drugA: drugNames[i], drugB: drugNames[j],
@@ -159,7 +176,7 @@ export function checkInteractions(
               description: `Interaction noted in ${drugNames[i]} prescribing information. Review medication profiles for clinical significance.`,
             });
           }
-        } else if (medB && checkInList(medB, drugNames[i])) {
+        } else if (medB && checkInList(medB, medA, drugNames[i])) {
           if (!results.find(r => r.drugA === drugNames[i] && r.drugB === drugNames[j])) {
             results.push({
               drugA: drugNames[i], drugB: drugNames[j],

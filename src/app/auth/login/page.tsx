@@ -25,11 +25,30 @@ function LoginForm() {
     if (err) {
       setError(err.message.includes("Invalid login") ? "電子郵件或密碼錯誤" : err.message);
       setLoading(false);
-    } else {
-      const redirect = searchParams.get("redirect") || "/pro/dashboard";
-      router.push(redirect);
-      router.refresh();
+      return;
     }
+    // 帳密通過後檢查 MFA 狀態
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const redirect = searchParams.get("redirect") || "/pro/dashboard";
+
+    // 已綁 TOTP 但尚未通過第二步驗證 → 跳 MFA 驗證頁
+    if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+      router.push(`/auth/mfa-verify?redirect=${encodeURIComponent(redirect)}`);
+      return;
+    }
+
+    // 尚未綁 TOTP（pro 角色強制設定）→ 引導至 /pro/security
+    if (aal?.nextLevel === "aal1") {
+      const { data: profile } = await supabase
+        .from("profiles").select("is_pro").eq("id", (await supabase.auth.getUser()).data.user!.id).single();
+      if (profile?.is_pro) {
+        router.push("/pro/security?firstLogin=true");
+        return;
+      }
+    }
+
+    router.push(redirect);
+    router.refresh();
   };
 
   return (

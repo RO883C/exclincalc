@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Shield, ShieldCheck, Smartphone, Key, RefreshCw, Copy, Check, AlertTriangle, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import Image from "next/image";
@@ -14,6 +15,8 @@ interface MFAFactor {
 }
 
 export default function SecurityPage() {
+  const searchParams = useSearchParams();
+  const isFirstLogin = searchParams?.get("firstLogin") === "true";
   const [factors, setFactors] = useState<MFAFactor[]>([]);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
@@ -93,6 +96,26 @@ export default function SecurityPage() {
 
   return (
     <div style={{ maxWidth: 600 }}>
+      {/* 首次登入引導橫幅 */}
+      {isFirstLogin && !hasMFA && (
+        <div style={{
+          marginBottom: 20, padding: "14px 18px", borderRadius: 12,
+          background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.3)",
+          display: "flex", alignItems: "flex-start", gap: 10,
+        }}>
+          <Shield size={18} color="#3b82f6" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#3b82f6", marginBottom: 4 }}>
+              歡迎使用 ClinCalc Pro
+            </div>
+            <div style={{ fontSize: 12, color: "var(--pro-text-muted)", lineHeight: 1.6 }}>
+              依本系統安全規範，醫事人員角色（pro）首次登入後須完成雙重驗證設定。
+              請在下方「設定雙重驗證」區塊完成 TOTP 綁定，之後每次登入都需輸入驗證器顯示的 6 位數動態碼。
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--pro-text)", display: "flex", alignItems: "center", gap: 8 }}>

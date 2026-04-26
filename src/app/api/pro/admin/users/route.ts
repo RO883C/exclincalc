@@ -133,6 +133,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // 解除 MFA 鎖定 / 重置 TOTP factor
+  // 1) 列出該用戶所有 TOTP factor 並 unenroll
+  // 2) 用戶下次登入會被視為「未綁定 MFA」狀態，引導重新 enroll
+  if (body.action === "reset_mfa") {
+    const { userId } = body;
+    const { data: factorsData, error: lfErr } = await admin.auth.admin.mfa.listFactors({ userId });
+    if (lfErr) return NextResponse.json({ error: lfErr.message }, { status: 500 });
+    const factors = factorsData?.factors ?? [];
+    let removed = 0;
+    for (const f of factors) {
+      const { error } = await admin.auth.admin.mfa.deleteFactor({ userId, id: f.id });
+      if (!error) removed++;
+    }
+    const { data: targetUser } = await admin.auth.admin.getUserById(userId);
+    await writeAuditLog({
+      actorId: caller.id, actorEmail: caller.email ?? "",
+      action: "reset_mfa",
+      targetId: userId, targetEmail: targetUser.user?.email ?? "",
+      details: { removed_factors: removed },
+    });
+    return NextResponse.json({ ok: true, removed });
+  }
+
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
 
