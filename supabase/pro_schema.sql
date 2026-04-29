@@ -223,7 +223,7 @@ create policy "Pro users update cover on public resources" on pro_resources
 --
 -- 指派超級管理員：
 --   UPDATE profiles SET is_pro = true, pro_role = 'super_admin'
---     WHERE id = (SELECT id FROM auth.users WHERE email = '00@test.com');
+--     WHERE id = (SELECT id FROM auth.users WHERE email = 'your-admin@example.com');
 --
 -- 指派管理員：
 --   UPDATE profiles SET is_pro = true, pro_role = 'admin'

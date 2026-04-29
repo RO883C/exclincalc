@@ -3,6 +3,13 @@
 -- 50 diverse patients for ExClinCalc dev/demo
 -- Run as the doctor user (replace DOCTOR_ID with actual UUID)
 -- ============================================================
+--
+-- ⚠️ SYNTHETIC SEED DATA — FOR DEMO / DEV PURPOSES ONLY
+-- All names, ID numbers (sequential pattern A123456789, B234567890...),
+-- and phone numbers (sequential pattern 0912345601, 0912345602...)
+-- are FABRICATED textbook placeholders. NO real patient information
+-- is included in this file or anywhere in this repository.
+-- ============================================================
 
 -- Usage: set doctor_id variable before running
 -- \set doctor_id 'YOUR-DOCTOR-UUID-HERE'
